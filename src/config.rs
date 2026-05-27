@@ -258,27 +258,31 @@ impl Config {
         println!("-------------------");
         
         // Add server status at the top
-        let runtime_lock = RuntimeLock::load();
-        match runtime_lock.pid {
-            Some(pid) => {
-                let uptime = runtime_lock.start_time
-                    .and_then(|start| SystemTime::now().duration_since(start).ok())
-                    .map(|duration| {
-                        let days = duration.as_secs() / 86400;
-                        let hours = (duration.as_secs() % 86400) / 3600;
-                        let minutes = (duration.as_secs() % 3600) / 60;
-                        if days > 0 {
-                            format!("{days}d {hours}h")
-                        } else if hours > 0 {
-                            format!("{hours}h {minutes}m")
-                        } else {
-                            format!("{minutes}m")
-                        }
-                    })
-                    .unwrap_or_else(|| "unknown time".to_string());
-                println!("Server: Running (PID: {pid}, Uptime: {uptime})");
-            },
-            None => println!("Server: Not running"),
+        if RuntimeLock::is_active() {
+            let runtime_lock = RuntimeLock::load();
+            match runtime_lock.pid {
+                Some(pid) => {
+                    let uptime = runtime_lock.start_time
+                        .and_then(|start| SystemTime::now().duration_since(start).ok())
+                        .map(|duration| {
+                            let days = duration.as_secs() / 86400;
+                            let hours = (duration.as_secs() % 86400) / 3600;
+                            let minutes = (duration.as_secs() % 3600) / 60;
+                            if days > 0 {
+                                format!("{days}d {hours}h")
+                            } else if hours > 0 {
+                                format!("{hours}h {minutes}m")
+                            } else {
+                                format!("{minutes}m")
+                            }
+                        })
+                        .unwrap_or_else(|| "unknown time".to_string());
+                    println!("Server: Running (PID: {pid}, Uptime: {uptime})");
+                },
+                None => println!("Server: Running (PID: unknown, Uptime: unknown)"),
+            }
+        } else {
+            println!("Server: Not running");
         }
         println!();
 

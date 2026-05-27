@@ -88,3 +88,32 @@ fn start_serve_with_invalid_json() {
     assert_ne!(None, runtime_lock);
     assert_eq!(dura.pid(true), runtime_lock.unwrap().pid);
 }
+
+#[test]
+fn double_lock_prevention() {
+    let mut dura = util::dura::Dura::new();
+    // Start primary daemon
+    dura.start_async(&["serve"], true);
+    dura.primary
+        .as_ref()
+        .map(|d| d.read_line(START_TIMEOUT).unwrap());
+
+    // Check that it's running
+    assert_ne!(None, dura.pid(true));
+
+    // Try to start a secondary daemon in the same cache directory
+    dura.start_async(&["serve"], false);
+
+    // The secondary daemon should exit immediately because the lock is held
+    std::thread::sleep(std::time::Duration::from_millis(1000));
+    
+    if let Some(ref mut secondary) = dura.secondary {
+        let status = secondary.child.try_wait().unwrap();
+        assert!(status.is_some(), "Secondary daemon did not exit on double lock");
+        let exit_code = status.unwrap().code();
+        assert_eq!(exit_code, Some(1));
+    } else {
+        panic!("Secondary daemon failed to spawn");
+    }
+}
+

@@ -81,16 +81,27 @@ fn do_task(stats: &mut StatCollector, guard: &mut PollGuard) {
 }
 
 pub async fn start() {
-    let mut runtime_lock = RuntimeLock::load();
+    let file = match RuntimeLock::acquire_exclusive() {
+        Ok(f) => f,
+        Err(e) => {
+            error!("Shutting down because another poller is running or lock file is locked: {e}");
+            process::exit(1);
+        }
+    };
+
+    let mut runtime_lock = RuntimeLock::empty();
     runtime_lock.pid = Some(process::id());
     runtime_lock.start_time = Some(SystemTime::now());
-    runtime_lock.save();
+    if let Err(e) = runtime_lock.write_metadata(&file) {
+        error!("Failed to write runtime lock metadata: {e}");
+    }
     info!(pid = std::process::id());
 
     let mut stats = StatCollector::new();
     let mut guard = PollGuard::new();
     loop {
         time::sleep(time::Duration::from_secs(5)).await;
+        let _keep_lock = &file;
         do_task(&mut stats, &mut guard);
     }
 }
