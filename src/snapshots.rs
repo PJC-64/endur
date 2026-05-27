@@ -54,8 +54,12 @@ pub fn capture(path: &Path) -> Result<Option<CaptureStatus>, Error> {
     let parent_commit = branch_commit.as_ref().unwrap_or(&head);
 
     // tree
-    let mut index = repo.index()?;
+    let index_path = repo.path().join("dura_index");
+    let mut index = git2::Index::open(&index_path)?;
+    index.read_tree(&parent_commit.tree()?)?;
+    repo.set_index(&mut index)?;
     index.add_all(["*"].iter(), IndexAddOption::DEFAULT, None)?;
+    index.write()?;
 
     let dirty_diff = repo.diff_tree_to_index(
         Some(&parent_commit.tree()?),

@@ -146,3 +146,30 @@ fn test_commit_signature_exclude_git_config() {
         .unwrap();
     assert_eq!(commit_email, "dura@github.io");
 }
+
+#[test]
+fn test_index_isolation() {
+    let tmp = tempfile::tempdir().unwrap();
+    let mut repo = repo_and_file!(tmp, "foo.txt");
+
+    // Stage a change in the standard index
+    repo.change_file("foo.txt");
+    repo.git(&["add", "foo.txt"]).unwrap();
+    
+    // Now make another unstaged modification in the working tree
+    repo.write_file("bar.txt");
+
+    // Get the status of standard index before dura capture
+    let git_status_before = repo.git(&["status", "--porcelain"]).unwrap();
+    
+    // Run dura capture
+    let status = snapshots::capture(repo.dir.as_path()).unwrap().unwrap();
+    assert_ne!(status.commit_hash, status.base_hash);
+
+    // Get the status of standard index after dura capture
+    let git_status_after = repo.git(&["status", "--porcelain"]).unwrap();
+    
+    // Assert that the standard git index status is completely unchanged
+    assert_eq!(git_status_before, git_status_after);
+}
+
