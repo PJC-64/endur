@@ -1,0 +1,12 @@
+# Compiled files and executables
+/target/
+debug/
+
+# backup files from rustfmt
+**/*.rs.bk
+
+# Generated markdown files that aren't part of the project.
+*.md
+# debugging information from rustc on MSVC Windows
+*.pdb
+/.idea/
