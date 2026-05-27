@@ -87,6 +87,13 @@ dura -v
 ```
 This prints the package version, compiled features (TUI backend, IPC format, lock strategy), and path locations of both Dura config and cache directories.
 
+### 7. Clean Up Configuration (`cleanup`)
+To remove any invalid or inaccessible repositories (e.g., deleted folders, non-git directories, or directories with permission errors) from your watch list, run:
+```bash
+dura cleanup
+```
+This automatically updates your Dura configuration and notifies the background daemon to reload.
+
 ---
 
 ## Recovery & Restore Guide
