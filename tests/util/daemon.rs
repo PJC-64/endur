@@ -1,5 +1,5 @@
 use std::io::{BufRead, BufReader};
-use std::process::{Child, ChildStdout};
+use std::process::Child;
 use std::sync::mpsc::{channel, Receiver};
 use std::sync::{Arc, Mutex};
 use std::thread;
@@ -17,33 +17,48 @@ pub struct Daemon {
 }
 
 impl Daemon {
-    pub fn new(mut child: Child) -> Self {
+    pub fn new(child: Child, log_path: std::path::PathBuf) -> Self {
         let kill_sign = Arc::new(Mutex::new(1));
         Self {
-            mailbox: Self::attach(
-                child
-                    .stdout
-                    .take()
-                    .expect("Configure Command to capture stdout"),
-                Arc::clone(&kill_sign),
-            ),
+            mailbox: Self::attach(log_path, Arc::clone(&kill_sign)),
             child,
             kill_sign,
         }
     }
 
-    /// Spawn another thread to watch the child process. It attaches to stdout and sends each line
-    /// over the channel. It sends a None right before it quits, either due to an error or EOF.
-    fn attach(stdout: ChildStdout, kill_sign: Arc<Mutex<i32>>) -> Receiver<Option<String>> {
+    /// Spawn another thread to watch the daemon log file. It tails the log file and sends each line
+    /// over the channel.
+    fn attach(log_path: std::path::PathBuf, kill_sign: Arc<Mutex<i32>>) -> Receiver<Option<String>> {
         fn is_ignored(msg: &str) -> bool {
             msg.contains("Started serving with dura")
         }
         let (sender, receiver) = channel();
         thread::spawn(move || {
-            let mut reader = BufReader::new(stdout);
+            let mut file_opt = None;
+            for _ in 0..100 { // 5 seconds max wait
+                if *kill_sign.lock().unwrap() <= 0 {
+                    return;
+                }
+                if log_path.exists() {
+                    if let Ok(file) = std::fs::File::open(&log_path) {
+                        file_opt = Some(file);
+                        break;
+                    }
+                }
+                thread::sleep(Duration::from_millis(50));
+            }
+
+            let file = match file_opt {
+                Some(f) => f,
+                None => {
+                    let _ = sender.send(None);
+                    return;
+                }
+            };
+
+            let mut reader = BufReader::new(file);
             loop {
                 {
-                    // check to see if the daemon is killed
                     if *kill_sign.lock().unwrap() <= 0 {
                         break;
                     }
@@ -51,17 +66,20 @@ impl Daemon {
                 let mut line = String::new();
                 match reader.read_line(&mut line) {
                     Ok(0) => {
-                        sender.send(None).unwrap();
-                        break;
+                        thread::sleep(Duration::from_millis(50));
                     }
                     Ok(_) => {
-                        if !is_ignored(line.as_str()) {
-                            sender.send(Some(line)).unwrap();
+                        if !line.is_empty() {
+                            if !is_ignored(line.as_str()) {
+                                if sender.send(Some(line)).is_err() {
+                                    break;
+                                }
+                            }
                         }
                     }
                     Err(e) => {
-                        eprintln!("Error in daemon: {e:?}");
-                        sender.send(None).unwrap();
+                        eprintln!("Error in daemon log watcher: {e:?}");
+                        let _ = sender.send(None);
                         break;
                     }
                 }
@@ -70,7 +88,7 @@ impl Daemon {
         receiver
     }
 
-    /// Read a line from the child process, waiting at most timeout_secs.
+    /// Read a line from the log file channel, waiting at most timeout_secs.
     pub fn read_line(&self, timeout_secs: u64) -> Option<String> {
         self.mailbox
             .recv_timeout(Duration::from_secs(timeout_secs))

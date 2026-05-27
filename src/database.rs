@@ -29,7 +29,7 @@ impl RuntimeLock {
     /// Windows :   %AppData%\Local\dura
     ///
     /// This can be overridden by setting DURA_CACHE_HOME environment variable.
-    fn get_dura_cache_home() -> PathBuf {
+    pub fn get_dura_cache_home() -> PathBuf {
         if let Ok(env_var) = env::var("DURA_CACHE_HOME") {
             if !env_var.is_empty() {
                 return env_var.into();

@@ -40,10 +40,12 @@ impl Dura {
             .spawn()
             .unwrap();
 
+        let log_path = self.cache_dir.path().join("dura.log");
+
         if is_primary {
-            self.primary = Some(Daemon::new(child));
+            self.primary = Some(Daemon::new(child, log_path));
         } else {
-            self.secondary = Some(Daemon::new(child));
+            self.secondary = Some(Daemon::new(child, log_path));
         }
     }
 

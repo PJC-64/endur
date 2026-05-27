@@ -186,31 +186,30 @@ async fn main() {
             let env_filter =
                 EnvFilter::try_from_default_env().unwrap_or_else(|_| EnvFilter::new("info"));
 
-            match arg_matches.get_one::<String>("logfile") {
-                Some(logfile) => {
-                    let file = logfile.to_string();
-                    Registry::default()
-                        .with(env_filter)
-                        .with(NestedJsonLayer::new(move || {
-                            let result_open_file =
-                                OpenOptions::new().append(true).create(true).open(&file);
-                            match result_open_file {
-                                Ok(f) => f,
-                                Err(e) => {
-                                    eprintln!("Unable to open file {file} for logging due to {e}");
-                                    std::process::exit(1);
-                                }
-                            }
-                        }))
-                        .init();
-                }
-                None => {
-                    Registry::default()
-                        .with(env_filter)
-                        .with(NestedJsonLayer::new(std::io::stdout))
-                        .init();
-                }
+            let logfile_path = match arg_matches.get_one::<String>("logfile") {
+                Some(logfile) => std::path::PathBuf::from(logfile),
+                None => RuntimeLock::get_dura_cache_home().join("dura.log"),
+            };
+
+            if let Some(parent) = logfile_path.parent() {
+                let _ = std::fs::create_dir_all(parent);
             }
+
+            let file_str = logfile_path.to_string_lossy().to_string();
+            Registry::default()
+                .with(env_filter)
+                .with(NestedJsonLayer::new(move || {
+                    let result_open_file =
+                        OpenOptions::new().append(true).create(true).open(&file_str);
+                    match result_open_file {
+                        Ok(f) => f,
+                        Err(e) => {
+                            eprintln!("Unable to open file {file_str} for logging due to {e}");
+                            std::process::exit(1);
+                        }
+                    }
+                }))
+                .init();
 
             info!("Started serving with dura v{}", crate_version!());
             poller::start().await;
