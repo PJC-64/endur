@@ -5,6 +5,9 @@ debug/
 # backup files from rustfmt
 **/*.rs.bk
 
+#Antigravity stuff
+.antigravitycli/
+
 # Generated markdown files that aren't part of the project.
 *.md
 !docs/**/*.md
@@ -12,6 +15,7 @@ debug/
 !/CONTRIBUTING.md
 !/WARP.md
 !/review.md
+
 # debugging information from rustc on MSVC Windows
 *.pdb
 /.idea/
