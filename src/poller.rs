@@ -97,11 +97,129 @@ pub async fn start() {
     }
     info!(pid = std::process::id());
 
+    let (shutdown_tx, mut shutdown_rx) = tokio::sync::broadcast::channel(1);
+
+    #[cfg(unix)]
+    tokio::spawn(run_ipc_server(shutdown_tx.clone()));
+
     let mut stats = StatCollector::new();
     let mut guard = PollGuard::new();
     loop {
-        time::sleep(time::Duration::from_secs(5)).await;
-        let _keep_lock = &file;
-        do_task(&mut stats, &mut guard);
+        tokio::select! {
+            _ = time::sleep(time::Duration::from_secs(5)) => {
+                let _keep_lock = &file;
+                do_task(&mut stats, &mut guard);
+            }
+            _ = shutdown_rx.recv() => {
+                info!("Shutting down poller task...");
+                break;
+            }
+        }
     }
+}
+
+#[cfg(unix)]
+pub fn socket_path() -> std::path::PathBuf {
+    RuntimeLock::default_path().parent().unwrap().join("dura.sock")
+}
+
+#[cfg(unix)]
+pub async fn send_uds_command(command: &str) -> Result<String, Box<dyn std::error::Error>> {
+    use tokio::io::{AsyncReadExt, AsyncWriteExt};
+    let path = socket_path();
+    let mut stream = tokio::net::UnixStream::connect(path).await?;
+    let req = serde_json::json!({ "command": command }).to_string();
+    stream.write_all(req.as_bytes()).await?;
+    stream.shutdown().await?;
+    let mut buf = Vec::new();
+    stream.read_to_end(&mut buf).await?;
+    Ok(String::from_utf8(buf)?)
+}
+
+#[cfg(unix)]
+pub async fn run_ipc_server(shutdown_tx: tokio::sync::broadcast::Sender<()>) {
+    use tokio::net::UnixListener;
+    use tokio::io::{AsyncReadExt, AsyncWriteExt};
+    
+    let path = socket_path();
+    if path.exists() {
+        let _ = std::fs::remove_file(&path);
+    }
+
+    let listener = match UnixListener::bind(&path) {
+        Ok(l) => l,
+        Err(e) => {
+            error!("Failed to bind to UDS socket: {e}");
+            return;
+        }
+    };
+
+    let mut shutdown_rx = shutdown_tx.subscribe();
+    loop {
+        tokio::select! {
+            accept_res = listener.accept() => {
+                match accept_res {
+                    Ok((mut stream, _)) => {
+                        let shutdown_tx_clone = shutdown_tx.clone();
+                        tokio::spawn(async move {
+                            let mut buf = [0; 1024];
+                            match stream.read(&mut buf).await {
+                                Ok(size) if size > 0 => {
+                                    let req_str = String::from_utf8_lossy(&buf[..size]);
+                                    let res = handle_ipc_command(&req_str, &shutdown_tx_clone).await;
+                                    let _ = stream.write_all(res.as_bytes()).await;
+                                }
+                                _ => {}
+                            }
+                        });
+                    }
+                    Err(e) => {
+                        error!("Error accepting UDS connection: {e}");
+                    }
+                }
+            }
+            _ = shutdown_rx.recv() => {
+                break;
+            }
+        }
+    }
+    let _ = std::fs::remove_file(&path);
+}
+
+#[cfg(unix)]
+async fn handle_ipc_command(req_str: &str, shutdown_tx: &tokio::sync::broadcast::Sender<()>) -> String {
+    #[derive(serde::Deserialize)]
+    struct IpcRequest {
+        command: String,
+    }
+
+    let req: IpcRequest = match serde_json::from_str(req_str.trim()) {
+        Ok(r) => r,
+        Err(_) => return serde_json::json!({"status": "error", "message": "Invalid JSON"}).to_string(),
+    };
+
+    match req.command.as_str() {
+        "kill" => {
+            let _ = shutdown_tx.send(());
+            serde_json::json!({"status": "ok", "message": "Shutting down"}).to_string()
+        }
+        "reload" => {
+            serde_json::json!({"status": "ok", "message": "Config reloaded"}).to_string()
+        }
+        "status" => {
+            let config = Config::load();
+            serde_json::json!({"status": "ok", "message": format!("Watching {} paths", config.repos.len())}).to_string()
+        }
+        _ => serde_json::json!({"status": "error", "message": "Unknown command"}).to_string(),
+    }
+}
+
+#[cfg(not(unix))]
+pub fn socket_path() -> std::path::PathBuf {
+    RuntimeLock::default_path()
+}
+
+#[cfg(not(unix))]
+pub async fn send_uds_command(_command: &str) -> Result<String, Box<dyn std::error::Error>> {
+    Err("UDS IPC is not supported on this platform".into())
 }

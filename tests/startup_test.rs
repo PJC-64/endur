@@ -117,3 +117,28 @@ fn double_lock_prevention() {
     }
 }
 
+#[tokio::test]
+async fn test_uds_communication() {
+    let mut dura = util::dura::Dura::new();
+    dura.start_async(&["serve"], true);
+    
+    // Wait for the daemon to start and create the socket
+    std::thread::sleep(std::time::Duration::from_millis(1500));
+
+    // Override the environment variable so our client finds the test cache directory
+    std::env::set_var("DURA_CACHE_HOME", dura.runtime_lock_path().parent().unwrap());
+
+    // Try sending a status command
+    let res = dura::poller::send_uds_command("status").await;
+    assert!(res.is_ok(), "Failed to send UDS command: {:?}", res.err());
+    let res_json: serde_json::Value = serde_json::from_str(&res.unwrap()).unwrap();
+    assert_eq!(res_json["status"], "ok");
+
+    // Try sending a reload command
+    let res = dura::poller::send_uds_command("reload").await;
+    assert!(res.is_ok());
+
+    // Clean up env var
+    std::env::remove_var("DURA_CACHE_HOME");
+}
+

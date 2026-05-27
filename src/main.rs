@@ -225,14 +225,14 @@ async fn main() {
                 max_depth,
             };
 
-            watch_dir(dir, watch_config);
+            watch_dir(dir, watch_config).await;
         }
         Some(("unwatch", arg_matches)) => {
             let dir = Path::new(arg_matches.get_one::<String>("directory").unwrap());
-            unwatch_dir(dir)
+            unwatch_dir(dir).await;
         }
         Some(("kill", _)) => {
-            kill();
+            kill().await;
         }
         Some(("metrics", arg_matches)) => {
             let mut input: Box<dyn Read> = match arg_matches.get_one::<String>("input") {
@@ -264,9 +264,9 @@ async fn main() {
     }
 }
 
-fn watch_dir(path: &std::path::Path, watch_config: WatchConfig) {
+async fn watch_dir(path: &std::path::Path, watch_config: WatchConfig) {
     let mut config = Config::load();
-    let path = match path.to_str() {
+    let path_str = match path.to_str() {
         Some(s) => s.to_string(),
         None => {
             eprintln!("The provided path is not valid unicode");
@@ -274,14 +274,17 @@ fn watch_dir(path: &std::path::Path, watch_config: WatchConfig) {
         }
     };
 
-    if let Err(e) = config.set_watch(path, watch_config) {
+    if let Err(e) = config.set_watch(path_str, watch_config) {
         eprintln!("{e}");
         process::exit(1);
     }
     config.save();
+
+    // Notify daemon
+    let _ = dura::poller::send_uds_command("reload").await;
 }
 
-fn unwatch_dir(path: &std::path::Path) {
+async fn unwatch_dir(path: &std::path::Path) {
     let mut config = Config::load();
 
     let path_str = match path.to_str() {
@@ -297,6 +300,9 @@ fn unwatch_dir(path: &std::path::Path) {
         process::exit(1);
     }
     config.save();
+
+    // Notify daemon
+    let _ = dura::poller::send_uds_command("reload").await;
 }
 
 #[cfg(unix)]
@@ -310,14 +316,20 @@ fn check_if_user() -> bool {
 }
 
 /// Stops the running dura poller.
-///
-/// The poller checks to make sure that its pid is the same as the pid
-/// found in the runtime lock file. If they are not the same, it will exit.
-/// This function does not actually kill the poller process, but rather
-/// clears the pid from the lock file, which will cause the poller to
-/// exit on its next check.
-fn kill() {
-    let mut runtime_lock = RuntimeLock::load();
-    runtime_lock.pid = None;
-    runtime_lock.save();
+async fn kill() {
+    match dura::poller::send_uds_command("kill").await {
+        Ok(res) => {
+            println!("Sent kill command to daemon: {res}");
+        }
+        Err(_) => {
+            if RuntimeLock::is_active() {
+                let mut runtime_lock = RuntimeLock::load();
+                runtime_lock.pid = None;
+                runtime_lock.save();
+                println!("Dura server terminated via lock file fallback.");
+            } else {
+                println!("Dura server is not running.");
+            }
+        }
+    }
 }
