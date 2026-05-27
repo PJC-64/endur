@@ -34,22 +34,22 @@ async fn main() {
         }
     };
 
-    let suffix = option_env!("DURA_VERSION_SUFFIX")
-        .map(|v| format!(" @ {v}"))
-        .unwrap_or_else(|| String::from(""));
-
-    let version = format!("{}{}", crate_version!(), suffix);
-
     let arg_directory = Arg::new("directory")
         .default_value(cwd.into_os_string().into_resettable())
         .help("The directory to watch. Defaults to current directory");
 
     let matches = Command::new(crate_name!())
         .about(crate_description!())
-        .version(version.into_resettable())
-        .subcommand_required(true)
+        .disable_version_flag(true)
         .arg_required_else_help(true)
         .author(crate_authors!())
+        .arg(
+            Arg::new("version")
+                .short('v')
+                .long("version")
+                .action(clap::builder::ArgAction::SetTrue)
+                .help("Print version information")
+        )
         .subcommand(
             Command::new("capture")
                 .short_flag('C')
@@ -158,6 +158,11 @@ async fn main() {
                 .arg(arg_directory.clone())
         )
         .get_matches();
+
+    if matches.get_flag("version") {
+        print_version_info();
+        return;
+    }
 
     match matches.subcommand() {
         Some(("capture", arg_matches)) => {
@@ -414,5 +419,28 @@ async fn kill() {
                 println!("Dura server is not running.");
             }
         }
+    }
+}
+
+fn print_version_info() {
+    let suffix = option_env!("DURA_VERSION_SUFFIX")
+        .map(|v| format!(" @ {v}"))
+        .unwrap_or_else(|| String::from(""));
+    let version = format!("{}{}", crate_version!(), suffix);
+
+    println!("dura {version}");
+    println!("  TUI: Enabled (ratatui 0.30)");
+    println!("  IPC: Unix Domain Sockets (UDS)");
+    println!("  Locking: Advisory File Locks (fs2)");
+
+    if let Ok(config_path) = Config::default_path() {
+        if let Some(parent) = config_path.parent() {
+            println!("  Config Home: {}", parent.display());
+        }
+    }
+
+    let cache_path = RuntimeLock::default_path();
+    if let Some(parent) = cache_path.parent() {
+        println!("  Cache Home:  {}", parent.display());
     }
 }
