@@ -80,6 +80,13 @@ To safely stop the background daemon process:
 dura kill
 ```
 
+### 6. Version and Features (`-v` / `--version`)
+To output detailed version and configuration info:
+```bash
+dura -v
+```
+This prints the package version, compiled features (TUI backend, IPC format, lock strategy), and path locations of both Dura config and cache directories.
+
 ---
 
 ## Recovery & Restore Guide
