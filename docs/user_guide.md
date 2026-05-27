@@ -105,13 +105,17 @@ To restore your working directory and staging index to the state captured in a s
 ```bash
 dura restore <commit-hash>
 ```
-Example:
+
+#### Interactive Mode (TUI)
+For a visual selection interface, run:
 ```bash
-$ dura restore 4a5b6c7d8e9f
-Restored working directory and index to snapshot 4a5b6c7d8e9f:
-  M  src/main.rs
-  A  tests/new_test.rs
+dura restore -i
 ```
+This launches a Terminal User Interface (TUI):
+*   Use `Left` / `Right` arrow keys to switch focus between the **Repositories** panel and the **Backups** panel.
+*   Use `Up` / `Down` arrow keys to navigate the highlighted list.
+*   Press `Enter` on a backup snapshot to restore it.
+*   Press `Esc` or `q` to exit the TUI without restoring.
 
 #### What happens during a restore?
 *   **Safe checkout**: The files matching the snapshot are checked out into your working directory, overwriting current unstaged changes.

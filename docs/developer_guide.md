@@ -69,6 +69,11 @@ graph TD
     *   Backups are committed to local branches named `dura/<base-commit-hash>`.
     *   The parent of the first dura snapshot is the user's HEAD commit. Subsequent backups chain off the previous dura backup commit, keeping histories completely linear.
 
+### 7. Interactive TUI Restore ([src/tui.rs](file:///Users/pjc/Development/new-dura/src/tui.rs))
+*   **`TuiState`**: State machine maintaining lists of active watched repositories, snapshots for the selected repo, navigation list indices, and current panel focus (`Repos` or `Snapshots`).
+*   **Terminal Interface**: Powered by `ratatui` with `crossterm`. Employs a split layout showing repositories on the left (40% width) and snapshots on the right (60% width), using border color highlights (Green vs Dark Gray) to clearly show panel focus.
+*   **Safe Terminal RAII**: An RAII wrapper `TerminalGuard` manages raw mode, alternate screen buffers, and cursor visibility, ensuring the terminal is always cleanly restored on program exit or panic.
+
 ---
 
 ## Development & Testing Workflow
