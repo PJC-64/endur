@@ -39,9 +39,9 @@ Dura runs as a background process. To start the daemon, run:
 ```bash
 dura serve &
 ```
-*   **Log Customization**: By default, `dura serve` logs to standard output. Use `--logfile <FILE>` to log to a file instead:
+*   **Log File**: By default, `dura serve` produces absolutely no output to `stdout` or `stderr`, instead automatically logging to a file named `dura.log` inside your Dura cache home directory (e.g. `~/.cache/dura/dura.log` on macOS/Linux). You can configure a custom log location with the `--logfile <FILE>` option:
     ```bash
-    dura serve --logfile ~/.cache/dura/dura.log &
+    dura serve --logfile /path/to/custom.log &
     ```
 
 ### 2. Monitor a Repository (`watch`)
