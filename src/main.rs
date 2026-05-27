@@ -148,8 +148,12 @@ async fn main() {
                 .about("Restore files from a specific dura backup snapshot.")
                 .arg(
                     Arg::new("hash")
-                        .required(true)
+                        .required_unless_present("interactive")
                         .help("The commit hash of the snapshot to restore")
+                )
+                .arg(
+                    arg!(-i --interactive "Interactive mode using TUI")
+                        .action(clap::builder::ArgAction::SetTrue)
                 )
                 .arg(arg_directory.clone())
         )
@@ -305,21 +309,37 @@ async fn main() {
             }
         }
         Some(("restore", arg_matches)) => {
-            let dir = Path::new(arg_matches.get_one::<String>("directory").unwrap());
-            let hash = arg_matches.get_one::<String>("hash").unwrap();
-            match snapshots::restore(dir, hash) {
+            let (dir, hash) = if arg_matches.get_flag("interactive") {
+                match dura::tui::run_interactive() {
+                    Ok(Some((repo, hash))) => (repo, hash),
+                    Ok(None) => {
+                        println!("Interactive restore cancelled.");
+                        return;
+                    }
+                    Err(e) => {
+                        println!("Failed to run interactive TUI: {e}");
+                        process::exit(1);
+                    }
+                }
+            } else {
+                let dir = Path::new(arg_matches.get_one::<String>("directory").unwrap()).to_path_buf();
+                let hash = arg_matches.get_one::<String>("hash").unwrap().to_string();
+                (dir, hash)
+            };
+
+            match snapshots::restore(&dir, &hash) {
                 Ok(changes) => {
                     if changes.is_empty() {
                         println!("No files needed to be restored or changed for commit {hash}");
                     } else {
-                        println!("Restored working directory and index to snapshot {hash}:");
+                        println!("Restored working directory and index of {} to snapshot {hash}:", dir.display());
                         for (status, path) in changes {
                             println!("  {} {}", status, path);
                         }
                     }
                 }
                 Err(e) => {
-                    println!("Failed to restore snapshot {hash}: {e}");
+                    println!("Failed to restore snapshot {hash} in {}: {e}", dir.display());
                     process::exit(1);
                 }
             }

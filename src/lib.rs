@@ -8,4 +8,5 @@ pub mod poll_guard;
 pub mod poller;
 pub mod repo_status;
 pub mod snapshots;
+pub mod tui;
 pub mod watcher;

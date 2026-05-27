@@ -27,6 +27,7 @@ sudo = "0.6.0"
 notify = "6.1.1"
 ignore = "0.4.20"
 fs2 = "0.4.3"
+ratatui = "0.30.0"
 
 
 [dev-dependencies]
