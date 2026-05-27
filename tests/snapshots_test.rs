@@ -173,3 +173,73 @@ fn test_index_isolation() {
     assert_eq!(git_status_before, git_status_after);
 }
 
+#[test]
+fn test_list_snapshots() {
+    let tmp = tempfile::tempdir().unwrap();
+    let mut repo = util::git_repo::GitRepo::new(tmp.path().to_path_buf());
+    repo.init();
+    repo.write_file("foo.txt");
+    repo.commit_all();
+
+    repo.change_file("foo.txt");
+    let status1 = snapshots::capture(repo.dir.as_path()).unwrap().unwrap();
+
+    repo.change_file("foo.txt");
+    let status2 = snapshots::capture(repo.dir.as_path()).unwrap().unwrap();
+
+    let list = snapshots::list_snapshots(repo.dir.as_path()).unwrap();
+    assert_eq!(list.len(), 2);
+
+    // Newest first
+    assert_eq!(list[0].commit_hash, status2.commit_hash);
+    assert_eq!(list[1].commit_hash, status1.commit_hash);
+
+    assert_eq!(list[0].files_changed, 1);
+    assert_eq!(list[1].files_changed, 1);
+
+    assert_eq!(list[0].message, "dura auto-backup");
+    assert_eq!(list[1].message, "dura auto-backup");
+}
+
+#[test]
+fn test_restore() {
+    let tmp = tempfile::tempdir().unwrap();
+    let mut repo = util::git_repo::GitRepo::new(tmp.path().to_path_buf());
+    repo.init();
+    repo.write_file("foo.txt");
+    repo.commit_all();
+
+    // First snapshot
+    repo.change_file("foo.txt"); // content will be "change 1"
+    let status1 = snapshots::capture(repo.dir.as_path()).unwrap().unwrap();
+
+    // Second snapshot
+    repo.change_file("foo.txt"); // content will be "change 2"
+    let status2 = snapshots::capture(repo.dir.as_path()).unwrap().unwrap();
+
+    // Dirty working directory modification
+    let foo_path = repo.dir.join("foo.txt");
+    std::fs::write(&foo_path, "dirty working tree").unwrap();
+
+    // Restore to snapshot 1
+    let changes = snapshots::restore(repo.dir.as_path(), &status1.commit_hash).unwrap();
+    assert_eq!(changes.len(), 1);
+    assert_eq!(changes[0].0, 'M');
+    assert_eq!(changes[0].1, "foo.txt");
+
+    // Verify content of foo.txt is "change 1"
+    let content = std::fs::read_to_string(&foo_path).unwrap();
+    assert_eq!(content, "change 1");
+
+    // Restore to snapshot 2
+    let changes2 = snapshots::restore(repo.dir.as_path(), &status2.commit_hash).unwrap();
+    assert_eq!(changes2.len(), 1);
+    assert_eq!(changes2[0].0, 'M');
+    assert_eq!(changes2[0].1, "foo.txt");
+
+    // Verify content of foo.txt is "change 2"
+    let content2 = std::fs::read_to_string(&foo_path).unwrap();
+    assert_eq!(content2, "change 2");
+}
+
+

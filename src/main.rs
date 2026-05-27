@@ -16,6 +16,7 @@ use dura::snapshots;
 use tracing::info;
 use tracing_subscriber::prelude::__tracing_subscriber_SubscriberExt;
 use tracing_subscriber::util::SubscriberInitExt;
+use chrono::TimeZone;
 use tracing_subscriber::{EnvFilter, Registry};
 
 #[tokio::main]
@@ -113,7 +114,7 @@ async fn main() {
                 .short_flag('U')
                 .long_flag("unwatch")
                 .about("Remove the current working directory as a repository to watch.")
-                .arg(arg_directory)
+                .arg(arg_directory.clone())
         )
         .subcommand(
             Command::new("kill")
@@ -136,6 +137,21 @@ async fn main() {
                      .num_args(1)
                      .help("The json file to write. Defaults to stdout.")
                  )
+        )
+        .subcommand(
+            Command::new("list-snapshots")
+                .about("List all local dura backup snapshots.")
+                .arg(arg_directory.clone())
+        )
+        .subcommand(
+            Command::new("restore")
+                .about("Restore files from a specific dura backup snapshot.")
+                .arg(
+                    Arg::new("hash")
+                        .required(true)
+                        .help("The commit hash of the snapshot to restore")
+                )
+                .arg(arg_directory.clone())
         )
         .get_matches();
 
@@ -258,6 +274,54 @@ async fn main() {
             if let Err(e) = metrics::get_snapshot_metrics(&mut input, &mut output) {
                 eprintln!("Failed: {e}");
                 process::exit(1);
+            }
+        }
+        Some(("list-snapshots", arg_matches)) => {
+            let dir = Path::new(arg_matches.get_one::<String>("directory").unwrap());
+            match snapshots::list_snapshots(dir) {
+                Ok(snapshots) => {
+                    if snapshots.is_empty() {
+                        println!("No snapshots found in repository: {}", dir.display());
+                    } else {
+                        println!("Dura Snapshots for repository: {}", dir.display());
+                        println!("{:<40} {:<25} {:<10}", "Commit Hash", "Date/Time", "Changes");
+                        println!("{}", "-".repeat(80));
+                        for snap in snapshots {
+                            let date_time = chrono::Local.timestamp_opt(snap.timestamp, 0)
+                                .single()
+                                .map(|dt| dt.format("%Y-%m-%d %H:%M:%S").to_string())
+                                .unwrap_or_else(|| "Unknown".to_string());
+                            println!(
+                                "{:<40} {:<25} {:<10} files",
+                                snap.commit_hash, date_time, snap.files_changed
+                            );
+                        }
+                    }
+                }
+                Err(e) => {
+                    println!("Failed to list snapshots: {e}");
+                    process::exit(1);
+                }
+            }
+        }
+        Some(("restore", arg_matches)) => {
+            let dir = Path::new(arg_matches.get_one::<String>("directory").unwrap());
+            let hash = arg_matches.get_one::<String>("hash").unwrap();
+            match snapshots::restore(dir, hash) {
+                Ok(changes) => {
+                    if changes.is_empty() {
+                        println!("No files needed to be restored or changed for commit {hash}");
+                    } else {
+                        println!("Restored working directory and index to snapshot {hash}:");
+                        for (status, path) in changes {
+                            println!("  {} {}", status, path);
+                        }
+                    }
+                }
+                Err(e) => {
+                    println!("Failed to restore snapshot {hash}: {e}");
+                    process::exit(1);
+                }
             }
         }
         _ => unreachable!(),
