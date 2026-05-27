@@ -157,6 +157,10 @@ async fn main() {
                 )
                 .arg(arg_directory.clone())
         )
+        .subcommand(
+            Command::new("cleanup")
+                .about("Remove any inaccessible or invalid repositories from the watch list.")
+        )
         .get_matches();
 
     if matches.get_flag("version") {
@@ -346,6 +350,32 @@ async fn main() {
                     println!("Failed to restore snapshot {hash} in {}: {e}", dir.display());
                     process::exit(1);
                 }
+            }
+        }
+        Some(("cleanup", _)) => {
+            let mut config = Config::load();
+            let mut to_remove = Vec::new();
+
+            for repo_path_str in config.repos.keys() {
+                let path = Path::new(repo_path_str);
+                if git2::Repository::open(path).is_err() {
+                    to_remove.push(repo_path_str.clone());
+                }
+            }
+
+            if to_remove.is_empty() {
+                println!("No inaccessible repositories found in watch list.");
+            } else {
+                println!("Found {} inaccessible repository/repositories:", to_remove.len());
+                for repo in &to_remove {
+                    println!("  Removing: {}", repo);
+                    config.repos.remove(repo);
+                }
+                config.save();
+                println!("Cleaned up configuration successfully.");
+
+                // Notify daemon
+                let _ = dura::poller::send_uds_command("reload").await;
             }
         }
         _ => unreachable!(),

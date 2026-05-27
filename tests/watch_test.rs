@@ -3,6 +3,10 @@ mod util;
 use crate::util::dura::Dura;
 use crate::util::git_repo::GitRepo;
 use std::collections::HashSet;
+use dura::config::Config;
+
+#[macro_use]
+extern crate serial_test;
 
 #[test]
 fn watch_repo() {
@@ -94,4 +98,48 @@ fn test_event_driven_backup() {
     let dura_hash = dura_hash_raw.trim();
     assert_ne!(dura_hash, head_hash, "Dura commit should not have the same hash as HEAD");
 }
+
+#[test]
+#[serial]
+fn test_cleanup_inaccessible_repos() {
+    let tmp = tempfile::tempdir().unwrap();
+    let repo1 = GitRepo::new(tmp.path().join("repo1"));
+    repo1.init();
+
+    let repo2 = GitRepo::new(tmp.path().join("repo2"));
+    repo2.init();
+
+    let dura = Dura::new();
+    
+    // Watch repo1 and repo2
+    dura.run_in_dir(&["watch"], &repo1.dir);
+    dura.run_in_dir(&["watch"], &repo2.dir);
+
+    // Watch a non-git directory that is invalid
+    let invalid_dir = tmp.path().join("invalid_dir");
+    std::fs::create_dir(&invalid_dir).unwrap();
+    dura.run_in_dir(&["watch"], &invalid_dir);
+
+    // Verify all three are watched
+    std::env::set_var("DURA_CONFIG_HOME", dura.config_path().parent().unwrap());
+    let config = Config::load();
+    assert_eq!(config.repos.len(), 3);
+
+    // Delete repo2 directory entirely (making it inaccessible)
+    std::fs::remove_dir_all(&repo2.dir).unwrap();
+
+    // Now run cleanup command
+    dura.run(&["cleanup"]);
+
+    // Load config again and verify:
+    // - repo1 is still watched (accessible)
+    // - repo2 is removed (deleted directory)
+    // - invalid_dir is removed (not a git repository)
+    let config_after = Config::load();
+    std::env::remove_var("DURA_CONFIG_HOME");
+
+    assert_eq!(config_after.repos.len(), 1);
+    assert!(config_after.repos.contains_key(repo1.dir.canonicalize().unwrap().to_str().unwrap()));
+}
+
 
