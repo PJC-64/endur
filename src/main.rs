@@ -12,6 +12,7 @@ use durable::database::RuntimeLock;
 use durable::logger::NestedJsonLayer;
 use durable::metrics;
 use durable::poller;
+use durable::service;
 use durable::snapshots;
 use tracing::info;
 use tracing_subscriber::prelude::__tracing_subscriber_SubscriberExt;
@@ -160,6 +161,12 @@ async fn main() {
         .subcommand(
             Command::new("cleanup")
                 .about("Remove any inaccessible or invalid repositories from the watch list.")
+        )
+        .subcommand(
+            Command::new("service")
+                .about("Manage durable background service")
+                .subcommand(Command::new("install").about("Install durable as a system startup service (launchd on macOS, systemd on Linux)"))
+                .subcommand(Command::new("uninstall").about("Uninstall durable startup service"))
         )
         .get_matches();
 
@@ -376,6 +383,26 @@ async fn main() {
 
                 // Notify daemon
                 let _ = durable::poller::send_uds_command("reload").await;
+            }
+        }
+        Some(("service", arg_matches)) => {
+            match arg_matches.subcommand() {
+                Some(("install", _)) => {
+                    if let Err(e) = service::install() {
+                        eprintln!("Error installing service: {e}");
+                        process::exit(1);
+                    }
+                }
+                Some(("uninstall", _)) => {
+                    if let Err(e) = service::uninstall() {
+                        eprintln!("Error uninstalling service: {e}");
+                        process::exit(1);
+                    }
+                }
+                _ => {
+                    eprintln!("Invalid service command. Use 'install' or 'uninstall'.");
+                    process::exit(1);
+                }
             }
         }
         _ => unreachable!(),
