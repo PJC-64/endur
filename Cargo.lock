@@ -441,7 +441,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "dura"
+name = "durable"
 version = "1.0.1"
 dependencies = [
  "anyhow",

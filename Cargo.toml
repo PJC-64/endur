@@ -1,13 +1,13 @@
 [package]
-name = "dura"
+name = "durable"
 version = "1.0.1"
 edition = "2021"
 authors = ["Tim Kellogg and the Internet"]
-description = "Dura backs up your work automatically via Git commits."
+description = "Durable backs up your work automatically via Git commits."
 license = "Apache-2.0"
-homepage = "https://github.com/tkellogg/dura/"
-repository = "https://github.com/tkellogg/dura/"
-documentation = "https://github.com/tkellogg/dura/blob/master/README.md"
+homepage = "https://github.com/tkellogg/durable/"
+repository = "https://github.com/tkellogg/durable/"
+documentation = "https://github.com/tkellogg/durable/blob/master/README.md"
 
 [dependencies]
 anyhow = "1.0.66"

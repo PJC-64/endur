@@ -1,9 +1,9 @@
-# Contributing to `dura`
+# Contributing to `durable`
 
 # Pull request process
 1. Discuss changes before starting. This helps avoid awkward situations, like where something has already been tried or isn't feasible for a non-obvious reason.
 2. Add tests, if possible
-    * [`startup_test.rs`](https://github.com/tkellogg/dura/blob/master/tests/startup_test.rs) is a good place to test out new functionality, and the test code reads fairly well.
+    * [`startup_test.rs`](https://github.com/tkellogg/durableble/blob/master/tests/startup_test.rs) is a good place to test out new functionality, and the test code reads fairly well.
     * Unit tests are preferred, when feasible. They go inside source files.
 3. Run `$ ./scripts/pre-commit.sh` before pushing. This does almost everything that happens in CI, just faster.
 4. Explain the behavior as best as possible. Things like screenshots and GIFs can be helpful when it's visual.
@@ -33,9 +33,9 @@ is:
   work with external dependencies easier.
   * `git_repo` — makes it easy to work with Git repositories in a temp directory. It does it in a way
     that tests can continue to run in parallel without interfering with each other.
-  * `dura` — makes it easy to call the real `dura` executable in a sub-process. This makes it 
+  * `durable` — makes it easy to call the real `durable` executable in a sub-process. This makes it 
     possible to run tests in parallel by setting environment varibales only for the sub-process 
-    (e.g. `$DURA_HOME`). It also uses the `util::daemon` module to facilitate working with `dura serve`
+    (e.g. `$DURA_HOME`). It also uses the `util::daemon` module to facilitate working with `durable serve`
     by allowing you to make a blocking call to `read_line` to wait the minimum amount of time for
     an activity to happen (like startup or snapshots).
 

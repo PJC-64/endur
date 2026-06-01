@@ -1,6 +1,6 @@
-# Dura Code Review
+# Durable Code Review
 
-This review covers a number of changes to the `dura` codebase to improve error handling, code quality, and performance.
+This review covers a number of changes to the `durable` codebase to improve error handling, code quality, and performance.
 
 ## Warnings Fixed
 

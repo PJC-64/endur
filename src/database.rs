@@ -19,27 +19,27 @@ impl RuntimeLock {
     }
 
     pub fn default_path() -> PathBuf {
-        Self::get_dura_cache_home().join("runtime.db")
+        Self::get_durable_cache_home().join("runtime.db")
     }
 
     /// Location of all database files. By default
     ///
-    /// Linux   :   $XDG_CACHE_HOME/dura or $HOME/.cache/dura
+    /// Linux   :   $XDG_CACHE_HOME/durable or $HOME/.cache/durable
     /// macOS   :   $HOME/Library/Caches
-    /// Windows :   %AppData%\Local\dura
+    /// Windows :   %AppData%\Local\durable
     ///
-    /// This can be overridden by setting DURA_CACHE_HOME environment variable.
-    pub fn get_dura_cache_home() -> PathBuf {
-        if let Ok(env_var) = env::var("DURA_CACHE_HOME") {
+    /// This can be overridden by setting DURABLE_CACHE_HOME environment variable.
+    pub fn get_durable_cache_home() -> PathBuf {
+        if let Ok(env_var) = env::var("DURABLE_CACHE_HOME") {
             if !env_var.is_empty() {
                 return env_var.into();
             }
         }
 
         dirs::cache_dir()
-            .expect("Could not find your cache directory. The default is ~/.cache/dura but it can also \
-                be controlled by setting the DURA_CACHE_HOME environment variable.")
-            .join("dura")
+            .expect("Could not find your cache directory. The default is ~/.cache/durable but it can also \
+                be controlled by setting the DURABLE_CACHE_HOME environment variable.")
+            .join("durable")
     }
 
     /// Load Config from default path
@@ -95,8 +95,8 @@ impl RuntimeLock {
             create_dir_all(dir).unwrap_or_else(|_| {
                 panic!(
                     "Failed to create directory at `{}`.\
-                    Dura stores its runtime cache in `{}/runtime.db`. \
-                    See https://github.com/tkellogg/dura for more information.",
+                    Durable stores its runtime cache in `{}/runtime.db`. \
+                    See https://github.com/tkellogg/durable for more information.",
                     dir.display(),
                     path.display()
                 )

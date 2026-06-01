@@ -141,7 +141,7 @@ pub async fn start() {
 
 #[cfg(unix)]
 pub fn socket_path() -> std::path::PathBuf {
-    RuntimeLock::default_path().parent().unwrap().join("dura.sock")
+    RuntimeLock::default_path().parent().unwrap().join("durable.sock")
 }
 
 #[cfg(unix)]

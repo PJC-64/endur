@@ -1,15 +1,15 @@
-# Dura User Guide
+# Durable User Guide
 
-Dura is a background daemon that monitors your active Git repositories and automatically backs up uncommitted changes. By utilizing filesystem events and keeping its operations strictly isolated, Dura ensures that you never lose unsaved code due to a computer crash, accidental deletion, or editor state loss.
+Durable is a background daemon that monitors your active Git repositories and automatically backs up uncommitted changes. By utilizing filesystem events and keeping its operations strictly isolated, Durable ensures that you never lose unsaved code due to a computer crash, accidental deletion, or editor state loss.
 
 ---
 
 ## Key Features
 
-1. **Zero-Configuration Backups**: Simply run `dura serve` and `dura watch` a repository.
-2. **Instant Event-Driven Capture**: Dura uses native filesystem events (`notify` crate) to immediately capture snapshots of your changes with a 500ms debounce window. No CPU-heavy polling loops.
+1. **Zero-Configuration Backups**: Simply run `durable serve` and `durable watch` a repository.
+2. **Instant Event-Driven Capture**: Durable uses native filesystem events (`notify` crate) to immediately capture snapshots of your changes with a 500ms debounce window. No CPU-heavy polling loops.
 3. **Smart Git Filtering**: Respects your `.gitignore` rules and ignores the `.git/` folder automatically.
-4. **Zero-Side-Effects Staging**: Uses an isolated index (`.git/dura_index`) so your primary Git index (`git status` and staging) is never touched during backups.
+4. **Zero-Side-Effects Staging**: Uses an isolated index (`.git/durable_index`) so your primary Git index (`git status` and staging) is never touched during backups.
 5. **Built-in CLI Recovery**: Restore files directly using native CLI recovery commands without writing complex Git plumbing commands.
 
 ---
@@ -23,7 +23,7 @@ curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
 ```
 
 ### Build from Source
-From the `new-dura` directory:
+From the `new-durable` directory:
 ```bash
 cargo install --path .
 ```
@@ -35,79 +35,79 @@ This compiles the release binary and installs it to your local Cargo bin directo
 ## Command Reference
 
 ### 1. Start the Daemon (`serve`)
-Dura runs as a background process. To start the daemon, run:
+Durable runs as a background process. To start the daemon, run:
 ```bash
-dura serve &
+durable serve &
 ```
-*   **Log File**: By default, `dura serve` produces absolutely no output to `stdout` or `stderr`, instead automatically logging to a file named `dura.log` inside your Dura cache home directory (e.g. `~/.cache/dura/dura.log` on macOS/Linux). You can configure a custom log location with the `--logfile <FILE>` option:
+*   **Log File**: By default, `durable serve` produces absolutely no output to `stdout` or `stderr`, instead automatically logging to a file named `durable.log` inside your Durable cache home directory (e.g. `~/.cache/durable/durable.log` on macOS/Linux). You can configure a custom log location with the `--logfile <FILE>` option:
     ```bash
-    dura serve --logfile /path/to/custom.log &
+    durable serve --logfile /path/to/custom.log &
     ```
 
 ### 2. Monitor a Repository (`watch`)
 To add a repository to the watch list, navigate to its directory and run:
 ```bash
-dura watch
+durable watch
 ```
 You can also specify a directory path:
 ```bash
-dura watch /path/to/my/project
+durable watch /path/to/my/project
 ```
 
 ### 3. Stop Monitoring a Repository (`unwatch`)
 To stop backing up a repository:
 ```bash
-dura unwatch
+durable unwatch
 ```
 Or specify the directory path:
 ```bash
-dura unwatch /path/to/my/project
+durable unwatch /path/to/my/project
 ```
 
 ### 4. Check Daemon Status & configuration (`info`)
 To print the current configuration, list of watched repositories, and daemon status, run:
 ```bash
-dura info
+durable info
 ```
 Use `--detail` for more detailed information:
 ```bash
-dura info --detail
+durable info --detail
 ```
 
 ### 5. Stop the Daemon (`kill`)
 To safely stop the background daemon process:
 ```bash
-dura kill
+durable kill
 ```
 
 ### 6. Version and Features (`-v` / `--version`)
 To output detailed version and configuration info:
 ```bash
-dura -v
+durable -v
 ```
-This prints the package version, compiled features (TUI backend, IPC format, lock strategy), and path locations of both Dura config and cache directories.
+This prints the package version, compiled features (TUI backend, IPC format, lock strategy), and path locations of both Durable config and cache directories.
 
 ### 7. Clean Up Configuration (`cleanup`)
 To remove any invalid or inaccessible repositories (e.g., deleted folders, non-git directories, or directories with permission errors) from your watch list, run:
 ```bash
-dura cleanup
+durable cleanup
 ```
-This automatically updates your Dura configuration and notifies the background daemon to reload.
+This automatically updates your Durable configuration and notifies the background daemon to reload.
 
 ---
 
 ## Recovery & Restore Guide
 
-When you modify files, Dura instantly commits changes to a branch specific to your current HEAD commit. If your current HEAD is `a1b2c3d...`, Dura commits to a local branch named `dura/a1b2c3d...`.
+When you modify files, Durable instantly commits changes to a branch specific to your current HEAD commit. If your current HEAD is `a1b2c3d...`, Durable commits to a local branch named `durable/a1b2c3d...`.
 
 ### Listing Snapshots
 To see all local backup snapshots for your repository, run:
 ```bash
-dura list-snapshots
+durable list-snapshots
 ```
 Example Output:
 ```
-Dura Snapshots for repository: /Users/pjc/Development/project
+Durable Snapshots for repository: /Users/pjc/Development/project
 Commit Hash                              Date/Time                 Changes
 --------------------------------------------------------------------------------
 4a5b6c7d8e9f...                          2026-05-27 08:35:10       2 files
@@ -117,13 +117,13 @@ Commit Hash                              Date/Time                 Changes
 ### Restoring a Snapshot
 To restore your working directory and staging index to the state captured in a specific snapshot, copy the snapshot's commit hash and run:
 ```bash
-dura restore <commit-hash>
+durable restore <commit-hash>
 ```
 
 #### Interactive Mode (TUI)
 For a visual selection interface, run:
 ```bash
-dura restore -i
+durable restore -i
 ```
 This launches a Terminal User Interface (TUI):
 *   Use `Left` / `Right` arrow keys to switch focus between the **Repositories** panel and the **Backups** panel.

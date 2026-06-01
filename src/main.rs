@@ -7,12 +7,12 @@ use clap::builder::IntoResettable;
 use clap::{
     arg, crate_authors, crate_description, crate_name, crate_version, value_parser, Arg, Command,
 };
-use dura::config::{Config, WatchConfig};
-use dura::database::RuntimeLock;
-use dura::logger::NestedJsonLayer;
-use dura::metrics;
-use dura::poller;
-use dura::snapshots;
+use durable::config::{Config, WatchConfig};
+use durable::database::RuntimeLock;
+use durable::logger::NestedJsonLayer;
+use durable::metrics;
+use durable::poller;
+use durable::snapshots;
 use tracing::info;
 use tracing_subscriber::prelude::__tracing_subscriber_SubscriberExt;
 use tracing_subscriber::util::SubscriberInitExt;
@@ -22,7 +22,7 @@ use tracing_subscriber::{EnvFilter, Registry};
 #[tokio::main]
 async fn main() {
     if !check_if_user() {
-        eprintln!("Dura cannot be run as root, to avoid data corruption");
+        eprintln!("Durable cannot be run as root, to avoid data corruption");
         process::exit(1);
     }
 
@@ -140,12 +140,12 @@ async fn main() {
         )
         .subcommand(
             Command::new("list-snapshots")
-                .about("List all local dura backup snapshots.")
+                .about("List all local durable backup snapshots.")
                 .arg(arg_directory.clone())
         )
         .subcommand(
             Command::new("restore")
-                .about("Restore files from a specific dura backup snapshot.")
+                .about("Restore files from a specific durable backup snapshot.")
                 .arg(
                     Arg::new("hash")
                         .required_unless_present("interactive")
@@ -178,7 +178,7 @@ async fn main() {
                     }
                 }
                 Err(e) => {
-                    println!("Dura capture failed: {e}");
+                    println!("Durable capture failed: {e}");
                     process::exit(1);
                 }
             }
@@ -197,7 +197,7 @@ async fn main() {
 
             let logfile_path = match arg_matches.get_one::<String>("logfile") {
                 Some(logfile) => std::path::PathBuf::from(logfile),
-                None => RuntimeLock::get_dura_cache_home().join("dura.log"),
+                None => RuntimeLock::get_durable_cache_home().join("durable.log"),
             };
 
             if let Some(parent) = logfile_path.parent() {
@@ -220,7 +220,7 @@ async fn main() {
                 }))
                 .init();
 
-            info!("Started serving with dura v{}", crate_version!());
+            info!("Started serving with durable v{}", crate_version!());
             poller::start().await;
         }
         Some(("watch", arg_matches)) => {
@@ -295,7 +295,7 @@ async fn main() {
                     if snapshots.is_empty() {
                         println!("No snapshots found in repository: {}", dir.display());
                     } else {
-                        println!("Dura Snapshots for repository: {}", dir.display());
+                        println!("Durable Snapshots for repository: {}", dir.display());
                         println!("{:<40} {:<25} {:<10}", "Commit Hash", "Date/Time", "Changes");
                         println!("{}", "-".repeat(80));
                         for snap in snapshots {
@@ -318,7 +318,7 @@ async fn main() {
         }
         Some(("restore", arg_matches)) => {
             let (dir, hash) = if arg_matches.get_flag("interactive") {
-                match dura::tui::run_interactive() {
+                match durable::tui::run_interactive() {
                     Ok(Some((repo, hash))) => (repo, hash),
                     Ok(None) => {
                         println!("Interactive restore cancelled.");
@@ -375,7 +375,7 @@ async fn main() {
                 println!("Cleaned up configuration successfully.");
 
                 // Notify daemon
-                let _ = dura::poller::send_uds_command("reload").await;
+                let _ = durable::poller::send_uds_command("reload").await;
             }
         }
         _ => unreachable!(),
@@ -399,7 +399,7 @@ async fn watch_dir(path: &std::path::Path, watch_config: WatchConfig) {
     config.save();
 
     // Notify daemon
-    let _ = dura::poller::send_uds_command("reload").await;
+    let _ = durable::poller::send_uds_command("reload").await;
 }
 
 async fn unwatch_dir(path: &std::path::Path) {
@@ -420,7 +420,7 @@ async fn unwatch_dir(path: &std::path::Path) {
     config.save();
 
     // Notify daemon
-    let _ = dura::poller::send_uds_command("reload").await;
+    let _ = durable::poller::send_uds_command("reload").await;
 }
 
 #[cfg(unix)]
@@ -433,9 +433,9 @@ fn check_if_user() -> bool {
     true
 }
 
-/// Stops the running dura poller.
+/// Stops the running durable poller.
 async fn kill() {
-    match dura::poller::send_uds_command("kill").await {
+    match durable::poller::send_uds_command("kill").await {
         Ok(res) => {
             println!("Sent kill command to daemon: {res}");
         }
@@ -444,21 +444,21 @@ async fn kill() {
                 let mut runtime_lock = RuntimeLock::load();
                 runtime_lock.pid = None;
                 runtime_lock.save();
-                println!("Dura server terminated via lock file fallback.");
+                println!("Durable server terminated via lock file fallback.");
             } else {
-                println!("Dura server is not running.");
+                println!("Durable server is not running.");
             }
         }
     }
 }
 
 fn print_version_info() {
-    let suffix = option_env!("DURA_VERSION_SUFFIX")
+    let suffix = option_env!("DURABLE_VERSION_SUFFIX")
         .map(|v| format!(" @ {v}"))
         .unwrap_or_else(|| String::from(""));
     let version = format!("{}{}", crate_version!(), suffix);
 
-    println!("dura {version}");
+    println!("durable {version}");
     println!("  TUI: Enabled (ratatui 0.30)");
     println!("  IPC: Unix Domain Sockets (UDS)");
     println!("  Locking: Advisory File Locks (fs2)");

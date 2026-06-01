@@ -1,4 +1,4 @@
-use dura::{config::Config, snapshots};
+use durable::{config::Config, snapshots};
 
 use std::env;
 
@@ -15,8 +15,7 @@ fn change_single_file() {
     let status = snapshots::capture(repo.dir.as_path()).unwrap().unwrap();
 
     assert_ne!(status.commit_hash, status.base_hash);
-    assert_eq!(status.dura_branch, format!("dura/{}", status.base_hash));
-    assert_eq!(status.dura_branch, format!("dura/{}", status.base_hash));
+    assert_eq!(status.durable_branch, format!("durable/{}", status.base_hash));
 }
 
 #[test]
@@ -54,25 +53,25 @@ fn during_merge_conflicts() {
     repo.change_file("foo.txt");
     let status = snapshots::capture(repo.dir.as_path()).unwrap().unwrap();
 
-    // Regular dura commit
+    // Regular durable commit
     assert_ne!(status.commit_hash, status.base_hash);
-    assert_eq!(status.dura_branch, format!("dura/{}", status.base_hash));
+    assert_eq!(status.durable_branch, format!("durable/{}", status.base_hash));
 }
 
 #[test]
 #[serial]
-fn test_commit_signature_using_dura_config() {
+fn test_commit_signature_using_durable_config() {
     let tmp = tempfile::tempdir().unwrap();
     let mut repo = util::git_repo::GitRepo::new(tmp.path().to_path_buf());
     repo.init();
     repo.set_config("user.name", "git-author");
     repo.set_config("user.email", "git@someemail.com");
 
-    env::set_var("DURA_CONFIG_HOME", tmp.path());
-    let mut dura_config = Config::empty();
-    dura_config.commit_author = Some("dura-config".to_string());
-    dura_config.commit_email = Some("dura-config@email.com".to_string());
-    dura_config.save();
+    env::set_var("DURABLE_CONFIG_HOME", tmp.path());
+    let mut durable_config = Config::empty();
+    durable_config.commit_author = Some("durable-config".to_string());
+    durable_config.commit_email = Some("durable-config@email.com".to_string());
+    durable_config.save();
 
     repo.write_file("foo.txt");
     repo.commit_all();
@@ -81,10 +80,10 @@ fn test_commit_signature_using_dura_config() {
     let status = snapshots::capture(repo.dir.as_path()).unwrap().unwrap();
 
     let commit_author = repo.git(&["show", "-s", "--format=format:%an", &status.commit_hash]);
-    assert_eq!(commit_author, dura_config.commit_author);
+    assert_eq!(commit_author, durable_config.commit_author);
 
     let commit_email = repo.git(&["show", "-s", "--format=format:%ae", &status.commit_hash]);
-    assert_eq!(commit_email, dura_config.commit_email);
+    assert_eq!(commit_email, durable_config.commit_email);
 }
 
 #[test]
@@ -96,9 +95,9 @@ fn test_commit_signature_using_git_config() {
     repo.set_config("user.name", "git-author");
     repo.set_config("user.email", "git@someemail.com");
 
-    env::set_var("DURA_CONFIG_HOME", tmp.path());
-    let dura_config = Config::empty();
-    dura_config.save();
+    env::set_var("DURABLE_CONFIG_HOME", tmp.path());
+    let durable_config = Config::empty();
+    durable_config.save();
 
     repo.write_file("foo.txt");
     repo.commit_all();
@@ -126,10 +125,10 @@ fn test_commit_signature_exclude_git_config() {
     repo.set_config("user.name", "git-author");
     repo.set_config("user.email", "git@someemail.com");
 
-    env::set_var("DURA_CONFIG_HOME", tmp.path());
-    let mut dura_config = Config::empty();
-    dura_config.commit_exclude_git_config = true;
-    dura_config.save();
+    env::set_var("DURABLE_CONFIG_HOME", tmp.path());
+    let mut durable_config = Config::empty();
+    durable_config.commit_exclude_git_config = true;
+    durable_config.save();
 
     repo.write_file("foo.txt");
     repo.commit_all();
@@ -139,12 +138,12 @@ fn test_commit_signature_exclude_git_config() {
     let commit_author = repo
         .git(&["show", "-s", "--format=format:%an", &status.commit_hash])
         .unwrap();
-    assert_eq!(commit_author, "dura");
+    assert_eq!(commit_author, "durable");
 
     let commit_email = repo
         .git(&["show", "-s", "--format=format:%ae", &status.commit_hash])
         .unwrap();
-    assert_eq!(commit_email, "dura@github.io");
+    assert_eq!(commit_email, "durable@github.io");
 }
 
 #[test]
@@ -159,14 +158,14 @@ fn test_index_isolation() {
     // Now make another unstaged modification in the working tree
     repo.write_file("bar.txt");
 
-    // Get the status of standard index before dura capture
+    // Get the status of standard index before durable capture
     let git_status_before = repo.git(&["status", "--porcelain"]).unwrap();
     
-    // Run dura capture
+    // Run durable capture
     let status = snapshots::capture(repo.dir.as_path()).unwrap().unwrap();
     assert_ne!(status.commit_hash, status.base_hash);
 
-    // Get the status of standard index after dura capture
+    // Get the status of standard index after durable capture
     let git_status_after = repo.git(&["status", "--porcelain"]).unwrap();
     
     // Assert that the standard git index status is completely unchanged
@@ -197,8 +196,8 @@ fn test_list_snapshots() {
     assert_eq!(list[0].files_changed, 1);
     assert_eq!(list[1].files_changed, 1);
 
-    assert_eq!(list[0].message, "dura auto-backup");
-    assert_eq!(list[1].message, "dura auto-backup");
+    assert_eq!(list[0].message, "durable auto-backup");
+    assert_eq!(list[1].message, "durable auto-backup");
 }
 
 #[test]
@@ -241,5 +240,3 @@ fn test_restore() {
     let content2 = std::fs::read_to_string(&foo_path).unwrap();
     assert_eq!(content2, "change 2");
 }
-
-

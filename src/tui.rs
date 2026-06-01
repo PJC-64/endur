@@ -174,7 +174,7 @@ pub fn run_interactive() -> Result<Option<(PathBuf, String)>, Box<dyn std::error
     repos.sort();
 
     if repos.is_empty() {
-        println!("No watched repositories found. Add one with `dura watch <path>`.");
+        println!("No watched repositories found. Add one with `durable watch <path>`.");
         return Ok(None);
     }
 
@@ -196,7 +196,7 @@ pub fn run_interactive() -> Result<Option<(PathBuf, String)>, Box<dyn std::error
                 .split(f.area());
 
             // Header
-            let header = Paragraph::new("Dura Interactive Snapshot Restore")
+            let header = Paragraph::new("Durable Interactive Snapshot Restore")
                 .style(Style::default().fg(Color::Cyan).add_modifier(Modifier::BOLD))
                 .block(
                     Block::default()
