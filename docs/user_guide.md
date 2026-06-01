@@ -94,6 +94,21 @@ durable cleanup
 ```
 This automatically updates your Durable configuration and notifies the background daemon to reload.
 
+### 8. System Startup Service (`service`)
+You can configure Durable to start automatically when you log in (macOS) or boot the system (Linux) by installing it as a user-level startup service.
+
+*   **Install Service**:
+    ```bash
+    durable service install
+    ```
+    This writes the appropriate configuration (`launchd` plist on macOS, `systemd` user service on Linux) and loads/starts the background service.
+
+*   **Uninstall Service**:
+    ```bash
+    durable service uninstall
+    ```
+    This stops the background service and deletes the plist/service configuration files.
+
 ---
 
 ## Recovery & Restore Guide

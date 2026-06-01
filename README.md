@@ -36,7 +36,7 @@ $ durable watch
 
 Right now, you have to `cd` into each repo that you want to watch, one at a time.
 
-If you have thoughts on how to do this better, share them [here](https://github.com/tkellogg/durableble/issues/3). Until that's sorted, you can
+If you have thoughts on how to do this better, share them [here](https://github.com/tkellogg/durable/issues/3). Until that's sorted, you can
 run something like `find ~ -type d -name .git -prune | xargs -I= sh -c "cd =/..; durable watch"` to get started on your existing repos.
 
 Make some changes. No need to commit or even stage them. Use any Git tool to see the `durable` branches:
@@ -80,26 +80,44 @@ For more details on commands and recovery, see the [User Guide](docs/user_guide.
 
 ### Cargo Install
 1. Install Cargo  
-2. If you want run release version, type ```cargo install durable``` else type ```cargo install --git https://github.com/tkellogg/durableble```
+2. To install the release version, run:
+   ```bash
+   cargo install durable
+   ```
 
 ### By Source
 
 1. Install Rust (e.g., `brew install rustup && brew install rust`)
-2. Clone this repository (e.g., `git clone https://github.com/tkellogg/durableble.git`)
+2. Clone this repository:
+   ```bash
+   git clone https://github.com/tkellogg/durable.git
+   ```
 3. Navigate to repository base directory (`cd durable`)
-4. Run `cargo install --path .` **Note:** If you receive a failure fetching the cargo dependencies try using the local [git client for cargo fetches](https://doc.rust-lang.org/cargo/reference/config.html#netgit-fetch-with-cli). `CARGO_NET_GIT_FETCH_WITH_CLI=true cargo install --path .`
+4. Run:
+   ```bash
+   cargo install --path .
+   ```
 
-### Mac OS X
+### macOS & Linux (Startup Service)
 
-This installs `durable` and sets up a launchctl service to keep it running.
+Durable can be configured as a background service that launches automatically at login (macOS) or boot (Linux) using the built-in subcommand:
 
 ```bash
-$ brew install durable
+$ durable service install
+```
+
+To stop and remove the service, run:
+
+```bash
+$ durable service uninstall
 ```
 
 ### Windows
 1. Download [rustup-init](https://www.rust-lang.org/tools/install)
-2. Clone this repository (e.g., `git clone https://github.com/tkellogg/durableble.git`)
+2. Clone this repository:
+   ```bash
+   git clone https://github.com/tkellogg/durable.git
+   ```
 3. Navigate to repository base directory (`cd durable`)
 4. Run `cargo install --path .` **Note:** If you receive a failure fetching the cargo dependencies try using the local [git client for cargo fetches](https://doc.rust-lang.org/cargo/reference/config.html#netgit-fetch-with-cli). `CARGO_NET_GIT_FETCH_WITH_CLI=true cargo install --path .`
 
@@ -151,7 +169,7 @@ Durable uses event-driven file monitoring (`notify` crate) to listen for filesys
 Brought to you by <a rel="nofollow me" href="https://hachyderm.io/@kellogh">Tim Kellogg</a>.
 
 
-[build badge]: https://github.com/tkellogg/durableble/actions/workflows/build.yaml/badge.svg
-[build action]: https://github.com/tkellogg/durableble/actions/workflows/build.yaml
+[build badge]: https://github.com/tkellogg/durable/actions/workflows/build.yaml/badge.svg
+[build action]: https://github.com/tkellogg/durable/actions/workflows/build.yaml
 [nix website]: https://nixos.org/
 [nix flake]: https://nixos.wiki/wiki/Flakes
