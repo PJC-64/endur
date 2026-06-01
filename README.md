@@ -69,10 +69,15 @@ Durable now provides built-in recovery subcommands:
    This displays all snapshots in the repository with their timestamps and files changed.
 
 2. **Restore files from a snapshot**:
-   ```bash
-   $ durable restore <commit-hash>
-   ```
-   This checks out the snapshot files directly to your working directory and staging index, keeping you on your current branch.
+   *   To restore the entire repository state:
+       ```bash
+       $ durable restore <commit-hash>
+       ```
+   *   To restore only specific files or directories (discrete restore):
+       ```bash
+       $ durable restore <commit-hash> --files path/to/file1.txt path/to/dir/
+       ```
+   Both options check out the snapshot files directly to your working directory and staging index, keeping you on your current branch.
 
 For more details on commands and recovery, see the [User Guide](docs/user_guide.md).
 

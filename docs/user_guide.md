@@ -135,6 +135,13 @@ To restore your working directory and staging index to the state captured in a s
 durable restore <commit-hash>
 ```
 
+#### Discrete Path Restore
+If you want to restore only specific files or folders from a snapshot rather than the entire repository, specify the `--files` (or `-f`) flag:
+```bash
+durable restore <commit-hash> --files path/to/file1.txt path/to/dir/
+```
+Only the specified files/directories will be reverted to the snapshot's state; other modifications in your working directory will remain untouched.
+
 #### Interactive Mode (TUI)
 For a visual selection interface, run:
 ```bash
