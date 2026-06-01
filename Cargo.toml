@@ -1,6 +1,6 @@
 [package]
 name = "durable"
-version = "1.0.1"
+version = "1.0.2"
 edition = "2021"
 authors = ["Tim Kellogg and the Internet"]
 description = "Durable backs up your work automatically via Git commits."
