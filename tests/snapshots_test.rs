@@ -221,7 +221,7 @@ fn test_restore() {
     std::fs::write(&foo_path, "dirty working tree").unwrap();
 
     // Restore to snapshot 1
-    let changes = snapshots::restore(repo.dir.as_path(), &status1.commit_hash).unwrap();
+    let changes = snapshots::restore(repo.dir.as_path(), &status1.commit_hash, None).unwrap();
     assert_eq!(changes.len(), 1);
     assert_eq!(changes[0].0, 'M');
     assert_eq!(changes[0].1, "foo.txt");
@@ -231,7 +231,7 @@ fn test_restore() {
     assert_eq!(content, "change 1");
 
     // Restore to snapshot 2
-    let changes2 = snapshots::restore(repo.dir.as_path(), &status2.commit_hash).unwrap();
+    let changes2 = snapshots::restore(repo.dir.as_path(), &status2.commit_hash, None).unwrap();
     assert_eq!(changes2.len(), 1);
     assert_eq!(changes2[0].0, 'M');
     assert_eq!(changes2[0].1, "foo.txt");
@@ -239,4 +239,44 @@ fn test_restore() {
     // Verify content of foo.txt is "change 2"
     let content2 = std::fs::read_to_string(&foo_path).unwrap();
     assert_eq!(content2, "change 2");
+}
+
+#[test]
+fn test_discrete_restore() {
+    let tmp = tempfile::tempdir().unwrap();
+    let mut repo = util::git_repo::GitRepo::new(tmp.path().to_path_buf());
+    repo.init();
+    
+    // Create two files
+    repo.write_file("foo.txt");
+    repo.write_file("bar.txt");
+    repo.commit_all();
+
+    // Modify both files and capture snapshot
+    repo.change_file("foo.txt"); // content will be "change 1"
+    repo.change_file("bar.txt"); // content will be "change 1"
+    let status = snapshots::capture(repo.dir.as_path()).unwrap().unwrap();
+
+    // Make both dirty in working tree
+    let foo_path = repo.dir.join("foo.txt");
+    let bar_path = repo.dir.join("bar.txt");
+    std::fs::write(&foo_path, "dirty foo").unwrap();
+    std::fs::write(&bar_path, "dirty bar").unwrap();
+
+    // Restore only foo.txt
+    let changes = snapshots::restore(
+        repo.dir.as_path(),
+        &status.commit_hash,
+        Some(&["foo.txt".to_string()]),
+    ).unwrap();
+    assert_eq!(changes.len(), 1);
+    assert_eq!(changes[0].1, "foo.txt");
+
+    // Verify foo.txt is restored
+    let content_foo = std::fs::read_to_string(&foo_path).unwrap();
+    assert_eq!(content_foo, "change 1");
+
+    // Verify bar.txt remains dirty (not restored)
+    let content_bar = std::fs::read_to_string(&bar_path).unwrap();
+    assert_eq!(content_bar, "dirty bar");
 }

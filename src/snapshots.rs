@@ -196,7 +196,11 @@ pub fn list_snapshots(path: &Path) -> Result<Vec<SnapshotInfo>, Error> {
     Ok(snapshots)
 }
 
-pub fn restore(path: &Path, commit_hash: &str) -> Result<Vec<(char, String)>, Error> {
+pub fn restore(
+    path: &Path,
+    commit_hash: &str,
+    files: Option<&[String]>,
+) -> Result<Vec<(char, String)>, Error> {
     let repo = Repository::open(path)?;
     let oid = git2::Oid::from_str(commit_hash)?;
     let commit = repo.find_commit(oid)?;
@@ -225,7 +229,20 @@ pub fn restore(path: &Path, commit_hash: &str) -> Result<Vec<(char, String)>, Er
                         .and_then(|p| p.to_str())
                         .unwrap_or("")
                         .to_string();
-                    changes.push((status_char, path_str));
+
+                    let should_include = if let Some(paths) = files {
+                        paths.iter().any(|p| {
+                            let path_p = Path::new(p);
+                            let delta_path = Path::new(&path_str);
+                            delta_path.starts_with(path_p)
+                        })
+                    } else {
+                        true
+                    };
+
+                    if should_include {
+                        changes.push((status_char, path_str));
+                    }
                 }
             }
         }
@@ -233,6 +250,11 @@ pub fn restore(path: &Path, commit_hash: &str) -> Result<Vec<(char, String)>, Er
 
     let mut checkout_opts = git2::build::CheckoutBuilder::new();
     checkout_opts.force();
+    if let Some(paths) = files {
+        for p in paths {
+            checkout_opts.path(Path::new(p));
+        }
+    }
 
     let obj = repo.find_object(oid, None)?;
     repo.checkout_tree(&obj, Some(&mut checkout_opts))?;

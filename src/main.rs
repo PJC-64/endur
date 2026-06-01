@@ -156,6 +156,14 @@ async fn main() {
                     arg!(-i --interactive "Interactive mode using TUI")
                         .action(clap::builder::ArgAction::SetTrue)
                 )
+                .arg(
+                    Arg::new("files")
+                        .short('f')
+                        .long("files")
+                        .num_args(1..)
+                        .value_name("FILE")
+                        .help("Specific files or directories to restore")
+                )
                 .arg(arg_directory.clone())
         )
         .subcommand(
@@ -342,7 +350,11 @@ async fn main() {
                 (dir, hash)
             };
 
-            match snapshots::restore(&dir, &hash) {
+            let files_to_restore = arg_matches
+                .get_many::<String>("files")
+                .map(|vals| vals.map(|s| s.to_string()).collect::<Vec<String>>());
+
+            match snapshots::restore(&dir, &hash, files_to_restore.as_deref()) {
                 Ok(changes) => {
                     if changes.is_empty() {
                         println!("No files needed to be restored or changed for commit {hash}");
