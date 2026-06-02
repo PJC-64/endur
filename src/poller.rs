@@ -88,6 +88,9 @@ pub async fn start() {
     #[cfg(unix)]
     tokio::spawn(run_ipc_server(shutdown_tx.clone(), reload_tx.clone()));
 
+    #[cfg(not(unix))]
+    let _ = (&shutdown_tx, &reload_tx);
+
     let mut pending_captures = std::collections::HashMap::<std::path::PathBuf, Instant>::new();
 
     // Run initial capture on all repos
