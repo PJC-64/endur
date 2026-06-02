@@ -3,7 +3,7 @@
 [![Build][build badge]][build action]
 
 > [!NOTE]
-> **Durable** is an actively maintained fork of Tim Kellogg's original [dura](https://github.com/tkellogg/dura) project. It contains significant modernizations, performance improvements, and feature additions.
+> **Durable** is an actively maintained fork of Tim Kellogg's original [dura](https://github.com/tkellogg/dura) project. Since the fork, this project is being developed and built with AI assistance (leveraging Antigravity, Google DeepMind's coding assistant). It contains significant modernizations, performance improvements, and feature additions.
 
 Durable is a background process that watches your Git repositories and commits your uncommitted changes without impacting
 HEAD, the current branch, or the Git index (staged files). If you ever get into an "oh snap!" situation where you think

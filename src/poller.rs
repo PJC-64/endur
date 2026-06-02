@@ -56,7 +56,7 @@ pub async fn start() {
     let mut runtime_lock = RuntimeLock::empty();
     runtime_lock.pid = Some(process::id());
     runtime_lock.start_time = Some(SystemTime::now());
-    if let Err(e) = runtime_lock.write_metadata(&file) {
+    if let Err(e) = runtime_lock.write_metadata() {
         error!("Failed to write runtime lock metadata: {e}");
     }
     info!(pid = std::process::id());

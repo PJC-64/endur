@@ -125,6 +125,7 @@ fn double_lock_prevention() {
     }
 }
 
+#[cfg(unix)]
 #[tokio::test]
 async fn test_uds_communication() {
     let mut durable = util::durable::Durable::new();

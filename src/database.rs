@@ -1,6 +1,6 @@
 use fs2::FileExt;
 use std::fs::{create_dir_all, File, OpenOptions};
-use std::io::{Result, Seek, SeekFrom, Write};
+use std::io::{Result, Write};
 use std::path::{Path, PathBuf};
 use std::time::SystemTime;
 use std::{env, fs, io};
@@ -23,6 +23,10 @@ impl RuntimeLock {
 
     pub fn default_path() -> PathBuf {
         Self::get_durable_cache_home().join("runtime.db")
+    }
+
+    pub fn lock_path() -> PathBuf {
+        Self::get_durable_cache_home().join("runtime.lock")
     }
 
     /// Location of all database files. By default
@@ -59,7 +63,7 @@ impl RuntimeLock {
     /// Tries to acquire an exclusive lock on the runtime lock file.
     /// If successful, returns the locked File handle.
     pub fn acquire_exclusive() -> Result<File> {
-        let path = Self::default_path();
+        let path = Self::lock_path();
         Self::create_dir(&path);
         let file = OpenOptions::new()
             .read(true)
@@ -73,21 +77,32 @@ impl RuntimeLock {
 
     /// Checks if the daemon is currently running by attempting a shared lock.
     pub fn is_active() -> bool {
-        let path = Self::default_path();
+        let path = Self::lock_path();
         if !path.exists() {
             return false;
         }
         let file = match File::open(&path) {
             Ok(f) => f,
-            Err(_) => return false,
+            Err(_) => {
+                #[cfg(target_os = "windows")]
+                return true;
+                #[cfg(not(target_os = "windows"))]
+                return false;
+            }
         };
         file.try_lock_shared().is_err()
     }
 
     /// Write lock metadata into the active locked file
-    pub fn write_metadata(&self, mut file: &File) -> Result<()> {
-        file.set_len(0)?;
-        file.seek(SeekFrom::Start(0))?;
+    pub fn write_metadata(&self) -> Result<()> {
+        let path = Self::default_path();
+        Self::create_dir(&path);
+        let mut file = OpenOptions::new()
+            .read(true)
+            .write(true)
+            .create(true)
+            .truncate(true)
+            .open(&path)?;
         let json = serde_json::to_string(self).unwrap();
         file.write_all(json.as_bytes())?;
         file.sync_all()?;
