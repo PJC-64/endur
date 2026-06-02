@@ -24,7 +24,7 @@ Compared to the upstream `dura` repository, **Durable** adds the following featu
 5. **Discrete Path Restore**: Allows you to restore only specific files or folders from a backup snapshot (e.g. `durable restore <hash> --files path/to/file`) instead of checking out the entire repository tree.
 6. **Built-in CLI Recovery & Interactive TUI**:
    * `durable list-snapshots`: Lists all snapshots with files changed and date/time.
-   * `durable restore -i`: Visual Terminal User Interface (TUI) powered by `ratatui` to select repositories and snapshots to restore.
+   * `durable restore -i`: Visual Terminal User Interface (TUI) powered by `ratatui` to browse repositories, drill down into snapshots, preview modified files, and selectively restore files using interactive checkboxes (`Space` to toggle, `Enter` to restore).
 7. **System Startup Service Subcommands**: Exposes `durable service install` and `durable service uninstall` to register the daemon as a system service automatically (`launchd` on macOS, `systemd` on Linux).
 8. **Configurable Log Redirection**: The `durable serve` daemon runs completely silently, logging only to a configurable file path (defaults to `~/.cache/durable/durable.log`).
 
@@ -93,11 +93,15 @@ Durable now provides built-in recovery subcommands:
        ```bash
        $ durable restore <commit-hash>
        ```
-   *   To restore only specific files or directories (discrete restore):
-       ```bash
-       $ durable restore <commit-hash> --files path/to/file1.txt path/to/dir/
-       ```
-   Both options check out the snapshot files directly to your working directory and staging index, keeping you on your current branch.
+    *   To restore only specific files or directories (discrete restore):
+        ```bash
+        $ durable restore <commit-hash> --files path/to/file1.txt path/to/dir/
+        ```
+    *   To use the visual interactive mode (supports full or selective checkbox-based restore):
+        ```bash
+        $ durable restore -i
+        ```
+    These options check out the snapshot files directly to your working directory and staging index, keeping you on your current branch.
 
 For more details on commands and recovery, see the [User Guide](docs/user_guide.md).
 

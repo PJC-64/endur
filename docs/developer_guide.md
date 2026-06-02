@@ -70,8 +70,11 @@ graph TD
     *   The parent of the first durable snapshot is the user's HEAD commit. Subsequent backups chain off the previous durable backup commit, keeping histories completely linear.
 
 ### 7. Interactive TUI Restore ([src/tui.rs](file:///Users/pjc/Development/durable/src/tui.rs))
-*   **`TuiState`**: State machine maintaining lists of active watched repositories, snapshots for the selected repo, navigation list indices, and current panel focus (`Repos` or `Snapshots`).
-*   **Terminal Interface**: Powered by `ratatui` with `crossterm`. Employs a split layout showing repositories on the left (40% width) and snapshots on the right (60% width), using border color highlights (Green vs Dark Gray) to clearly show panel focus.
+*   **`TuiState`**: State machine maintaining lists of active watched repositories, snapshots for the selected repo, changed files for the selected snapshot, navigation list indices (`repo_state`, `snap_state`, `files_state`), active checkbox selections (`selected_files`), current panel focus (`Repos`, `Snapshots`, or `Files`), and navigation mode (`in_repo_select`).
+*   **Multi-Step Navigation Flow**:
+    *   **Repository Selection Mode** (`in_repo_select == true`): Shows the list of repositories on the left (40% width) and a read-only preview of snapshots on the right (60% width).
+    *   **Snapshot/File Selection Mode** (`in_repo_select == false`): Replaces the left pane with the snapshots list, and the right pane with the list of files changed. Highlights (Green vs Dark Gray borders) denote which pane currently has keyboard focus.
+*   **Checkbox Selection & Discrete Restore**: Hitting `[Space]` toggles file paths in the `selected_files` set. Pressing `[Enter]` while focused on the files list returns the selection list back to the CLI driver for a **discrete restore**. Hitting `[Enter]` while focused on the snapshots list triggers a **full restore**.
 *   **Safe Terminal RAII**: An RAII wrapper `TerminalGuard` manages raw mode, alternate screen buffers, and cursor visibility, ensuring the terminal is always cleanly restored on program exit or panic.
 
 ### 8. Background Service Management ([src/service.rs](file:///Users/pjc/Development/durable/src/service.rs))

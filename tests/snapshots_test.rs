@@ -280,3 +280,22 @@ fn test_discrete_restore() {
     let content_bar = std::fs::read_to_string(&bar_path).unwrap();
     assert_eq!(content_bar, "dirty bar");
 }
+
+#[test]
+fn test_get_snapshot_files() {
+    let tmp = tempfile::tempdir().unwrap();
+    let mut repo = repo_and_file!(tmp, "foo.txt");
+    repo.write_file("bar.txt");
+    repo.commit_all();
+
+    repo.change_file("foo.txt");
+    repo.write_file("new_file.txt");
+    let status = snapshots::capture(repo.dir.as_path()).unwrap().unwrap();
+
+    let files = snapshots::get_snapshot_files(repo.dir.as_path(), &status.commit_hash).unwrap();
+    assert_eq!(files.len(), 2);
+    let paths: Vec<String> = files.iter().map(|(_, p)| p.clone()).collect();
+    assert!(paths.contains(&"foo.txt".to_string()));
+    assert!(paths.contains(&"new_file.txt".to_string()));
+}
+

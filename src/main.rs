@@ -332,9 +332,9 @@ async fn main() {
             }
         }
         Some(("restore", arg_matches)) => {
-            let (dir, hash) = if arg_matches.get_flag("interactive") {
+            let (dir, hash, files_to_restore) = if arg_matches.get_flag("interactive") {
                 match durable::tui::run_interactive() {
-                    Ok(Some((repo, hash))) => (repo, hash),
+                    Ok(Some((repo, hash, files))) => (repo, hash, files),
                     Ok(None) => {
                         println!("Interactive restore cancelled.");
                         return;
@@ -347,12 +347,11 @@ async fn main() {
             } else {
                 let dir = Path::new(arg_matches.get_one::<String>("directory").unwrap()).to_path_buf();
                 let hash = arg_matches.get_one::<String>("hash").unwrap().to_string();
-                (dir, hash)
+                let files = arg_matches
+                    .get_many::<String>("files")
+                    .map(|vals| vals.map(|s| s.to_string()).collect::<Vec<String>>());
+                (dir, hash, files)
             };
-
-            let files_to_restore = arg_matches
-                .get_many::<String>("files")
-                .map(|vals| vals.map(|s| s.to_string()).collect::<Vec<String>>());
 
             match snapshots::restore(&dir, &hash, files_to_restore.as_deref()) {
                 Ok(changes) => {

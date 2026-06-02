@@ -262,3 +262,36 @@ pub fn restore(
     Ok(changes)
 }
 
+pub fn get_snapshot_files(path: &Path, commit_hash: &str) -> Result<Vec<(char, String)>, Error> {
+    let repo = Repository::open(path)?;
+    let oid = git2::Oid::from_str(commit_hash)?;
+    let commit = repo.find_commit(oid)?;
+    let mut files = Vec::new();
+
+    if commit.parent_count() > 0 {
+        let parent = commit.parent(0)?;
+        let diff = repo.diff_tree_to_tree(
+            Some(&parent.tree()?),
+            Some(&commit.tree()?),
+            None,
+        )?;
+        for delta in diff.deltas() {
+            let status_char = match delta.status() {
+                git2::Delta::Added => 'A',
+                git2::Delta::Deleted => 'D',
+                git2::Delta::Modified => 'M',
+                git2::Delta::Renamed => 'R',
+                git2::Delta::Copied => 'C',
+                _ => 'M',
+            };
+            let path_str = delta
+                .new_file()
+                .path()
+                .and_then(|p| p.to_str())
+                .unwrap_or("")
+                .to_string();
+            files.push((status_char, path_str));
+        }
+    }
+    Ok(files)
+}

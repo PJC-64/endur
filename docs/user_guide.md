@@ -147,11 +147,22 @@ For a visual selection interface, run:
 ```bash
 durable restore -i
 ```
-This launches a Terminal User Interface (TUI):
-*   Use `Left` / `Right` arrow keys to switch focus between the **Repositories** panel and the **Backups** panel.
-*   Use `Up` / `Down` arrow keys to navigate the highlighted list.
-*   Press `Enter` on a backup snapshot to restore it.
-*   Press `Esc` or `q` to exit the TUI without restoring.
+This launches an interactive Terminal User Interface (TUI) with a multi-step selection flow:
+1. **Repository Selection**:
+   * Use `Up` / `Down` to navigate the list of watched repositories on the left. A preview of backups is shown on the right.
+   * Press `Enter` (or `Right`/`Tab`) to select the highlighted repository. This transitions to the Snapshot view.
+2. **Backup/Snapshot Selection**:
+   * The left pane now shows the list of snapshots/backups for the selected repository. The right pane displays a preview of modified files in the highlighted snapshot.
+   * Use `Up` / `Down` to navigate snapshots.
+   * Press `Enter` to restore the **entire** highlighted snapshot.
+   * Press `Esc` or `Backspace` or `Left` to go back to the Repository Selection screen.
+   * Press `Right` (or `Tab`) to switch focus to the **Changed Files** list on the right.
+3. **Changed Files Selection (Discrete Restore)**:
+   * The right pane is now active. Use `Up` / `Down` to navigate through the list of modified files.
+   * Press `Space` to toggle checkbox selection `[x]` on individual files.
+   * Press `Enter` to restore **only the selected files** (or the highlighted file, if no checkmarks are active).
+   * Press `Left` or `Esc` or `Backspace` or `Tab` to switch focus back to the Backup/Snapshot list on the left.
+*   At any screen, press `q` to exit the TUI without restoring.
 
 #### What happens during a restore?
 *   **Safe checkout**: The files matching the snapshot are checked out into your working directory, overwriting current unstaged changes.
