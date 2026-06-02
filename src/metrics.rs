@@ -9,7 +9,7 @@ use std::rc::Rc;
 
 type FlexResult<T> = std::result::Result<T, Box<dyn std::error::Error>>;
 
-/// Reads an input stream that contains durable logs and enriches them with more analytics-ready info
+/// Reads an input stream that contains endur logs and enriches them with more analytics-ready info
 /// like number of insertions & deletions. The result is written back out to an output stream.
 pub fn get_snapshot_metrics(
     input: &mut dyn io::Read,
@@ -58,7 +58,7 @@ fn scrape_log(line: String) -> serde_json::Result<Option<Value>> {
                 if let Some(latency) = Number::from_f64(latency as f64) {
                     output_val["latency"] = Value::Number(latency);
                 }
-                output_val["durable_branch"] = Value::String(op.durable_branch);
+                output_val["endur_branch"] = Value::String(op.endur_branch);
                 output_val["commit_hash"] = Value::String(op.commit_hash);
                 output_val["base_hash"] = Value::String(op.base_hash);
             }
@@ -127,16 +127,16 @@ mod tests {
     fn scrape_log_happy_path() {
         // broken up into multiple lines to satisfy style checker, but serde_json will handle it
         // fine
-        let line = r#"{"target":"durable::poller","file":"src/poller.rs",
+        let line = r#"{"target":"endur::poller","file":"src/poller.rs",
             "name":"event src/poller.rs:70","level":"Level(Info)",
             "fields":{
                 "message":"info_operation","operation":{"Snapshot":{
                     "error":null,"latency":0.00988253,"op":{
                         "base_hash":"3e8e8c99b5434e726b13f56ba00d139bab57d5eb",
                         "commit_hash":"3423d21a2937d95119982395bc1281d3d8ebe3b6",
-                        "durable_branch":"durable/3e8e8c99b5434e726b13f56ba00d139bab57d5eb"
+                        "endur_branch":"endur/3e8e8c99b5434e726b13f56ba00d139bab57d5eb"
                     },
-                    "repo":"/Users/timkellogg/code/durable"}
+                    "repo":"/Users/timkellogg/code/endur"}
                 }
             },"time":"2022-01-14T01:49:51.638031+00:00"
         }"#;
@@ -149,11 +149,11 @@ mod tests {
         );
         assert_eq!(
             output["repo"].as_str(),
-            Some("/Users/timkellogg/code/durable")
+            Some("/Users/timkellogg/code/endur")
         );
         assert_eq!(
-            output["durable_branch"].as_str(),
-            Some("durable/3e8e8c99b5434e726b13f56ba00d139bab57d5eb")
+            output["endur_branch"].as_str(),
+            Some("endur/3e8e8c99b5434e726b13f56ba00d139bab57d5eb")
         );
         assert_eq!(
             output["commit_hash"].as_str(),
@@ -172,7 +172,7 @@ mod tests {
     fn scrape_log_no_snapshot() {
         // broken up into multiple lines to satisfy style checker, but serde_json will handle it
         // fine
-        let line = r#"{"target":"durable","file":"src/main.rs","name":"event src/main.rs:96",
+        let line = r#"{"target":"endur","file":"src/main.rs","name":"event src/main.rs:96",
             "level":"Level(Info)","fields":{"pid":5416},
             "time":"2022-01-14T01:45:37.469819+00:00"}"#;
 

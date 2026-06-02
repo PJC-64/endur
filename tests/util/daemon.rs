@@ -33,7 +33,7 @@ impl Daemon {
         kill_sign: Arc<Mutex<i32>>,
     ) -> Receiver<Option<String>> {
         fn is_ignored(msg: &str) -> bool {
-            msg.contains("Started serving with dura")
+            msg.contains("Started serving with endur")
         }
         let (sender, receiver) = channel();
         thread::spawn(move || {

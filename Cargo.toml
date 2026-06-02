@@ -1,13 +1,13 @@
 [package]
-name = "durable"
+name = "endur"
 version = "1.0.3-dev1"
 edition = "2021"
 authors = ["Tim Kellogg and the Internet"]
-description = "Durable backs up your work automatically via Git commits."
+description = "Endur backs up your work automatically via Git commits."
 license = "Apache-2.0"
-homepage = "https://github.com/PJC-64/durable/"
-repository = "https://github.com/PJC-64/durable/"
-documentation = "https://github.com/PJC-64/durable/blob/main/README.md"
+homepage = "https://github.com/PJC-64/endur/"
+repository = "https://github.com/PJC-64/endur/"
+documentation = "https://github.com/PJC-64/endur/blob/main/README.md"
 
 [dependencies]
 anyhow = "1.0.66"

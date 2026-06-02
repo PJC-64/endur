@@ -1,15 +1,15 @@
-# Durable User Guide
+# Endur User Guide
 
-Durable is a background daemon that monitors your active Git repositories and automatically backs up uncommitted changes. By utilizing filesystem events and keeping its operations strictly isolated, Durable ensures that you never lose unsaved code due to a computer crash, accidental deletion, or editor state loss.
+Endur is a background daemon that monitors your active Git repositories and automatically backs up uncommitted changes. By utilizing filesystem events and keeping its operations strictly isolated, Endur ensures that you never lose unsaved code due to a computer crash, accidental deletion, or editor state loss.
 
 ---
 
 ## Key Features
 
-1. **Zero-Configuration Backups**: Simply run `durable serve` and `durable watch` a repository.
-2. **Instant Event-Driven Capture**: Durable uses native filesystem events (`notify` crate) to immediately capture snapshots of your changes with a 500ms debounce window. No CPU-heavy polling loops.
+1. **Zero-Configuration Backups**: Simply run `endur serve` and `endur watch` a repository.
+2. **Instant Event-Driven Capture**: Endur uses native filesystem events (`notify` crate) to immediately capture snapshots of your changes with a 500ms debounce window. No CPU-heavy polling loops.
 3. **Smart Git Filtering**: Respects your `.gitignore` rules and ignores the `.git/` folder automatically.
-4. **Zero-Side-Effects Staging**: Uses an isolated index (`.git/durable_index`) so your primary Git index (`git status` and staging) is never touched during backups.
+4. **Zero-Side-Effects Staging**: Uses an isolated index (`.git/endur_index`) so your primary Git index (`git status` and staging) is never touched during backups.
 5. **Built-in CLI Recovery**: Restore files directly using native CLI recovery commands without writing complex Git plumbing commands.
 
 ---
@@ -23,7 +23,7 @@ curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
 ```
 
 ### Build from Source
-From the `new-durable` directory:
+From the `endur` directory:
 ```bash
 cargo install --path .
 ```
@@ -35,77 +35,77 @@ This compiles the release binary and installs it to your local Cargo bin directo
 ## Command Reference
 
 ### 1. Start the Daemon (`serve`)
-Durable runs as a background process. To start the daemon, run:
+Endur runs as a background process. To start the daemon, run:
 ```bash
-durable serve &
+endur serve &
 ```
-*   **Log File**: By default, `durable serve` produces absolutely no output to `stdout` or `stderr`, instead automatically logging to a file named `durable.log` inside your Durable cache home directory (e.g. `~/.cache/durable/durable.log` on macOS/Linux). You can configure a custom log location with the `--logfile <FILE>` option:
+*   **Log File**: By default, `endur serve` produces absolutely no output to `stdout` or `stderr`, instead automatically logging to a file named `endur.log` inside your Endur cache home directory (e.g. `~/.cache/endur/endur.log` on macOS/Linux). You can configure a custom log location with the `--logfile <FILE>` option:
     ```bash
-    durable serve --logfile /path/to/custom.log &
+    endur serve --logfile /path/to/custom.log &
     ```
 
 ### 2. Monitor a Repository (`watch`)
 To add a repository to the watch list, navigate to its directory and run:
 ```bash
-durable watch
+endur watch
 ```
 You can also specify a directory path:
 ```bash
-durable watch /path/to/my/project
+endur watch /path/to/my/project
 ```
 
 ### 3. Stop Monitoring a Repository (`unwatch`)
 To stop backing up a repository:
 ```bash
-durable unwatch
+endur unwatch
 ```
 Or specify the directory path:
 ```bash
-durable unwatch /path/to/my/project
+endur unwatch /path/to/my/project
 ```
 
 ### 4. Check Daemon Status & configuration (`info`)
 To print the current configuration, list of watched repositories, and daemon status, run:
 ```bash
-durable info
+endur info
 ```
 Use `--detail` for more detailed information:
 ```bash
-durable info --detail
+endur info --detail
 ```
 
 ### 5. Stop the Daemon (`kill`)
 To safely stop the background daemon process:
 ```bash
-durable kill
+endur kill
 ```
 
 ### 6. Version and Features (`-v` / `--version`)
 To output detailed version and configuration info:
 ```bash
-durable -v
+endur -v
 ```
-This prints the package version, compiled features (TUI backend, IPC format, lock strategy), and path locations of both Durable config and cache directories.
+This prints the package version, compiled features (TUI backend, IPC format, lock strategy), and path locations of both Endur config and cache directories.
 
 ### 7. Clean Up Configuration (`cleanup`)
 To remove any invalid or inaccessible repositories (e.g., deleted folders, non-git directories, or directories with permission errors) from your watch list, run:
 ```bash
-durable cleanup
+endur cleanup
 ```
-This automatically updates your Durable configuration and notifies the background daemon to reload.
+This automatically updates your Endur configuration and notifies the background daemon to reload.
 
 ### 8. System Startup Service (`service`)
-You can configure Durable to start automatically when you log in (macOS) or boot the system (Linux) by installing it as a user-level startup service.
+You can configure Endur to start automatically when you log in (macOS) or boot the system (Linux) by installing it as a user-level startup service.
 
 *   **Install Service**:
     ```bash
-    durable service install
+    endur service install
     ```
     This writes the appropriate configuration (`launchd` plist on macOS, `systemd` user service on Linux) and loads/starts the background service.
 
 *   **Uninstall Service**:
     ```bash
-    durable service uninstall
+    endur service uninstall
     ```
     This stops the background service and deletes the plist/service configuration files.
 
@@ -113,16 +113,16 @@ You can configure Durable to start automatically when you log in (macOS) or boot
 
 ## Recovery & Restore Guide
 
-When you modify files, Durable instantly commits changes to a branch specific to your current HEAD commit. If your current HEAD is `a1b2c3d...`, Durable commits to a local branch named `durable/a1b2c3d...`.
+When you modify files, Endur instantly commits changes to a branch specific to your current HEAD commit. If your current HEAD is `a1b2c3d...`, Endur commits to a local branch named `endur/a1b2c3d...`.
 
 ### Listing Snapshots
 To see all local backup snapshots for your repository, run:
 ```bash
-durable list-snapshots
+endur list-snapshots
 ```
 Example Output:
 ```
-Durable Snapshots for repository: /Users/pjc/Development/project
+Endur Snapshots for repository: /Users/pjc/Development/project
 Commit Hash                              Date/Time                 Changes
 --------------------------------------------------------------------------------
 4a5b6c7d8e9f...                          2026-05-27 08:35:10       2 files
@@ -132,20 +132,20 @@ Commit Hash                              Date/Time                 Changes
 ### Restoring a Snapshot
 To restore your working directory and staging index to the state captured in a specific snapshot, copy the snapshot's commit hash and run:
 ```bash
-durable restore <commit-hash>
+endur restore <commit-hash>
 ```
 
 #### Discrete Path Restore
 If you want to restore only specific files or folders from a snapshot rather than the entire repository, specify the `--files` (or `-f`) flag:
 ```bash
-durable restore <commit-hash> --files path/to/file1.txt path/to/dir/
+endur restore <commit-hash> --files path/to/file1.txt path/to/dir/
 ```
 Only the specified files/directories will be reverted to the snapshot's state; other modifications in your working directory will remain untouched.
 
 #### Interactive Mode (TUI)
 For a visual selection interface, run:
 ```bash
-durable restore -i
+endur restore -i
 ```
 This launches an interactive Terminal User Interface (TUI) with a multi-step selection flow:
 1. **Repository Selection**:
@@ -173,11 +173,11 @@ This launches an interactive Terminal User Interface (TUI) with a multi-step sel
 
 ## Appendix: CLI Help Reference
 
-### 1. Main Executable Help (`durable --help`)
+### 1. Main Executable Help (`endur --help`)
 ```text
-Durable backs up your work automatically via Git commits.
+Endur backs up your work automatically via Git commits.
 
-Usage: durable [COMMAND]
+Usage: endur [COMMAND]
 
 Commands:
   capture, -C, --capture  Run a single backup of an entire repository. This is the one single iteration of the `serve` control loop.
@@ -187,10 +187,10 @@ Commands:
   unwatch, -U, --unwatch  Remove the current working directory as a repository to watch.
   kill, -K, --kill        Stop the running worker (should only be a single worker).
   metrics, -M, --metrics  Convert logs into richer metrics about snapshots.
-  list-snapshots          List all local durable backup snapshots.
-  restore                 Restore files from a specific durable backup snapshot.
+  list-snapshots          List all local endur backup snapshots.
+  restore                 Restore files from a specific endur backup snapshot.
   cleanup                 Remove any inaccessible or invalid repositories from the watch list.
-  service                 Manage durable background service
+  service                 Manage endur background service
   help                    Print this message or the help of the given subcommand(s)
 
 Options:
@@ -198,11 +198,11 @@ Options:
   -h, --help     Print help
 ```
 
-### 2. Capture Command Help (`durable capture --help`)
+### 2. Capture Command Help (`endur capture --help`)
 ```text
 Run a single backup of an entire repository. This is the one single iteration of the `serve` control loop.
 
-Usage: durable {capture|--capture|-C} [directory]
+Usage: endur {capture|--capture|-C} [directory]
 
 Arguments:
   [directory]  The directory to watch. Defaults to current directory
@@ -211,33 +211,33 @@ Options:
   -h, --help  Print help
 ```
 
-### 3. Info Command Help (`durable info --help`)
+### 3. Info Command Help (`endur info --help`)
 ```text
 Prints summary information about the current configuration and repository status.
 
-Usage: durable {info|--info|-I} [OPTIONS]
+Usage: endur {info|--info|-I} [OPTIONS]
 
 Options:
   -d, --detail  Show detailed output
   -h, --help    Print help
 ```
 
-### 4. Serve Command Help (`durable serve --help`)
+### 4. Serve Command Help (`endur serve --help`)
 ```text
 Starts the worker that listens for file changes. If another process is already running, this will do it's best to terminate the other process.
 
-Usage: durable {serve|--serve|-S} [OPTIONS]
+Usage: endur {serve|--serve|-S} [OPTIONS]
 
 Options:
       --logfile <FILE>  Sets custom logfile. Default is logging to stdout
   -h, --help            Print help
 ```
 
-### 5. Watch Command Help (`durable watch --help`)
+### 5. Watch Command Help (`endur watch --help`)
 ```text
 Add the current working directory as a repository to watch.
 
-Usage: durable {watch|--watch|-W} [OPTIONS] [directory]
+Usage: endur {watch|--watch|-W} [OPTIONS] [directory]
 
 Arguments:
   [directory]  The directory to watch. Defaults to current directory
@@ -249,11 +249,11 @@ Options:
   -h, --help                    Print help
 ```
 
-### 6. Unwatch Command Help (`durable unwatch --help`)
+### 6. Unwatch Command Help (`endur unwatch --help`)
 ```text
 Remove the current working directory as a repository to watch.
 
-Usage: durable {unwatch|--unwatch|-U} [directory]
+Usage: endur {unwatch|--unwatch|-U} [directory]
 
 Arguments:
   [directory]  The directory to watch. Defaults to current directory
@@ -262,21 +262,21 @@ Options:
   -h, --help  Print help
 ```
 
-### 7. Kill Command Help (`durable kill --help`)
+### 7. Kill Command Help (`endur kill --help`)
 ```text
 Stop the running worker (should only be a single worker).
 
-Usage: durable {kill|--kill|-K}
+Usage: endur {kill|--kill|-K}
 
 Options:
   -h, --help  Print help
 ```
 
-### 8. List Snapshots Command Help (`durable list-snapshots --help`)
+### 8. List Snapshots Command Help (`endur list-snapshots --help`)
 ```text
-List all local durable backup snapshots.
+List all local endur backup snapshots.
 
-Usage: durable list-snapshots [directory]
+Usage: endur list-snapshots [directory]
 
 Arguments:
   [directory]  The directory to watch. Defaults to current directory
@@ -285,11 +285,11 @@ Options:
   -h, --help  Print help
 ```
 
-### 9. Restore Command Help (`durable restore --help`)
+### 9. Restore Command Help (`endur restore --help`)
 ```text
-Restore files from a specific durable backup snapshot.
+Restore files from a specific endur backup snapshot.
 
-Usage: durable restore [OPTIONS] [hash] [directory]
+Usage: endur restore [OPTIONS] [hash] [directory]
 
 Arguments:
   [hash]       The commit hash of the snapshot to restore
@@ -301,15 +301,15 @@ Options:
   -h, --help             Print help
 ```
 
-### 10. Service Command Help (`durable service --help`)
+### 10. Service Command Help (`endur service --help`)
 ```text
-Manage durable background service
+Manage endur background service
 
-Usage: durable service [COMMAND]
+Usage: endur service [COMMAND]
 
 Commands:
-  install    Install durable as a system startup service (launchd on macOS, systemd on Linux)
-  uninstall  Uninstall durable startup service
+  install    Install endur as a system startup service (launchd on macOS, systemd on Linux)
+  uninstall  Uninstall endur startup service
   help       Print this message or the help of the given subcommand(s)
 
 Options:

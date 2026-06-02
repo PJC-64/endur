@@ -257,7 +257,7 @@ pub fn run_interactive(
     repos.sort();
 
     if repos.is_empty() {
-        println!("No watched repositories found. Add one with `durable watch <path>`.");
+        println!("No watched repositories found. Add one with `endur watch <path>`.");
         return Ok(None);
     }
 
@@ -279,7 +279,7 @@ pub fn run_interactive(
                 .split(f.area());
 
             // Header
-            let header = Paragraph::new("Durable Interactive Snapshot Restore")
+            let header = Paragraph::new("Endur Interactive Snapshot Restore")
                 .style(Style::default().fg(Color::Cyan).add_modifier(Modifier::BOLD))
                 .block(
                     Block::default()

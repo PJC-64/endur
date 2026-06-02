@@ -1,5 +1,5 @@
-use durable::poll_guard::PollGuard;
-use durable::snapshots;
+use endur::poll_guard::PollGuard;
+use endur::snapshots;
 use std::thread::sleep;
 use std::time::Duration;
 

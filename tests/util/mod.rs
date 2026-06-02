@@ -2,6 +2,6 @@
 #![allow(dead_code)]
 
 pub mod daemon;
-pub mod durable;
+pub mod endur;
 pub mod git_repo;
 pub mod macros;

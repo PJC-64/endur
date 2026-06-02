@@ -1,4 +1,4 @@
-use durable::{config::Config, snapshots};
+use endur::{config::Config, snapshots};
 
 use std::env;
 
@@ -16,8 +16,8 @@ fn change_single_file() {
 
     assert_ne!(status.commit_hash, status.base_hash);
     assert_eq!(
-        status.durable_branch,
-        format!("durable/{}", status.base_hash)
+        status.endur_branch,
+        format!("endur/{}", status.base_hash)
     );
 }
 
@@ -56,28 +56,28 @@ fn during_merge_conflicts() {
     repo.change_file("foo.txt");
     let status = snapshots::capture(repo.dir.as_path()).unwrap().unwrap();
 
-    // Regular durable commit
+    // Regular endur commit
     assert_ne!(status.commit_hash, status.base_hash);
     assert_eq!(
-        status.durable_branch,
-        format!("durable/{}", status.base_hash)
+        status.endur_branch,
+        format!("endur/{}", status.base_hash)
     );
 }
 
 #[test]
 #[serial]
-fn test_commit_signature_using_durable_config() {
+fn test_commit_signature_using_endur_config() {
     let tmp = tempfile::tempdir().unwrap();
     let mut repo = util::git_repo::GitRepo::new(tmp.path().to_path_buf());
     repo.init();
     repo.set_config("user.name", "git-author");
     repo.set_config("user.email", "git@someemail.com");
 
-    env::set_var("DURABLE_CONFIG_HOME", tmp.path());
-    let mut durable_config = Config::empty();
-    durable_config.commit_author = Some("durable-config".to_string());
-    durable_config.commit_email = Some("durable-config@email.com".to_string());
-    durable_config.save();
+    env::set_var("ENDUR_CONFIG_HOME", tmp.path());
+    let mut endur_config = Config::empty();
+    endur_config.commit_author = Some("endur-config".to_string());
+    endur_config.commit_email = Some("endur-config@email.com".to_string());
+    endur_config.save();
 
     repo.write_file("foo.txt");
     repo.commit_all();
@@ -86,10 +86,10 @@ fn test_commit_signature_using_durable_config() {
     let status = snapshots::capture(repo.dir.as_path()).unwrap().unwrap();
 
     let commit_author = repo.git(&["show", "-s", "--format=format:%an", &status.commit_hash]);
-    assert_eq!(commit_author, durable_config.commit_author);
+    assert_eq!(commit_author, endur_config.commit_author);
 
     let commit_email = repo.git(&["show", "-s", "--format=format:%ae", &status.commit_hash]);
-    assert_eq!(commit_email, durable_config.commit_email);
+    assert_eq!(commit_email, endur_config.commit_email);
 }
 
 #[test]
@@ -101,9 +101,9 @@ fn test_commit_signature_using_git_config() {
     repo.set_config("user.name", "git-author");
     repo.set_config("user.email", "git@someemail.com");
 
-    env::set_var("DURABLE_CONFIG_HOME", tmp.path());
-    let durable_config = Config::empty();
-    durable_config.save();
+    env::set_var("ENDUR_CONFIG_HOME", tmp.path());
+    let endur_config = Config::empty();
+    endur_config.save();
 
     repo.write_file("foo.txt");
     repo.commit_all();
@@ -131,10 +131,10 @@ fn test_commit_signature_exclude_git_config() {
     repo.set_config("user.name", "git-author");
     repo.set_config("user.email", "git@someemail.com");
 
-    env::set_var("DURABLE_CONFIG_HOME", tmp.path());
-    let mut durable_config = Config::empty();
-    durable_config.commit_exclude_git_config = true;
-    durable_config.save();
+    env::set_var("ENDUR_CONFIG_HOME", tmp.path());
+    let mut endur_config = Config::empty();
+    endur_config.commit_exclude_git_config = true;
+    endur_config.save();
 
     repo.write_file("foo.txt");
     repo.commit_all();
@@ -144,12 +144,12 @@ fn test_commit_signature_exclude_git_config() {
     let commit_author = repo
         .git(&["show", "-s", "--format=format:%an", &status.commit_hash])
         .unwrap();
-    assert_eq!(commit_author, "durable");
+    assert_eq!(commit_author, "endur");
 
     let commit_email = repo
         .git(&["show", "-s", "--format=format:%ae", &status.commit_hash])
         .unwrap();
-    assert_eq!(commit_email, "durable@github.io");
+    assert_eq!(commit_email, "endur@github.io");
 }
 
 #[test]
@@ -164,14 +164,14 @@ fn test_index_isolation() {
     // Now make another unstaged modification in the working tree
     repo.write_file("bar.txt");
 
-    // Get the status of standard index before durable capture
+    // Get the status of standard index before endur capture
     let git_status_before = repo.git(&["status", "--porcelain"]).unwrap();
 
-    // Run durable capture
+    // Run endur capture
     let status = snapshots::capture(repo.dir.as_path()).unwrap().unwrap();
     assert_ne!(status.commit_hash, status.base_hash);
 
-    // Get the status of standard index after durable capture
+    // Get the status of standard index after endur capture
     let git_status_after = repo.git(&["status", "--porcelain"]).unwrap();
 
     // Assert that the standard git index status is completely unchanged
@@ -202,8 +202,8 @@ fn test_list_snapshots() {
     assert_eq!(list[0].files_changed, 1);
     assert_eq!(list[1].files_changed, 1);
 
-    assert_eq!(list[0].message, "durable auto-backup");
-    assert_eq!(list[1].message, "durable auto-backup");
+    assert_eq!(list[0].message, "endur auto-backup");
+    assert_eq!(list[1].message, "endur auto-backup");
 }
 
 #[test]

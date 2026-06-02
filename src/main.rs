@@ -8,13 +8,13 @@ use clap::builder::IntoResettable;
 use clap::{
     arg, crate_authors, crate_description, crate_name, crate_version, value_parser, Arg, Command,
 };
-use durable::config::{Config, WatchConfig};
-use durable::database::RuntimeLock;
-use durable::logger::NestedJsonLayer;
-use durable::metrics;
-use durable::poller;
-use durable::service;
-use durable::snapshots;
+use endur::config::{Config, WatchConfig};
+use endur::database::RuntimeLock;
+use endur::logger::NestedJsonLayer;
+use endur::metrics;
+use endur::poller;
+use endur::service;
+use endur::snapshots;
 use tracing::info;
 use tracing_subscriber::prelude::__tracing_subscriber_SubscriberExt;
 use tracing_subscriber::util::SubscriberInitExt;
@@ -23,7 +23,7 @@ use tracing_subscriber::{EnvFilter, Registry};
 #[tokio::main]
 async fn main() {
     if !check_if_user() {
-        eprintln!("Durable cannot be run as root, to avoid data corruption");
+        eprintln!("Endur cannot be run as root, to avoid data corruption");
         process::exit(1);
     }
 
@@ -141,12 +141,12 @@ async fn main() {
         )
         .subcommand(
             Command::new("list-snapshots")
-                .about("List all local durable backup snapshots.")
+                .about("List all local endur backup snapshots.")
                 .arg(arg_directory.clone())
         )
         .subcommand(
             Command::new("restore")
-                .about("Restore files from a specific durable backup snapshot.")
+                .about("Restore files from a specific endur backup snapshot.")
                 .arg(
                     Arg::new("hash")
                         .required_unless_present("interactive")
@@ -172,9 +172,9 @@ async fn main() {
         )
         .subcommand(
             Command::new("service")
-                .about("Manage durable background service")
-                .subcommand(Command::new("install").about("Install durable as a system startup service (launchd on macOS, systemd on Linux)"))
-                .subcommand(Command::new("uninstall").about("Uninstall durable startup service"))
+                .about("Manage endur background service")
+                .subcommand(Command::new("install").about("Install endur as a system startup service (launchd on macOS, systemd on Linux)"))
+                .subcommand(Command::new("uninstall").about("Uninstall endur startup service"))
         )
         .get_matches();
 
@@ -193,7 +193,7 @@ async fn main() {
                     }
                 }
                 Err(e) => {
-                    println!("Durable capture failed: {e}");
+                    println!("Endur capture failed: {e}");
                     process::exit(1);
                 }
             }
@@ -212,7 +212,7 @@ async fn main() {
 
             let logfile_path = match arg_matches.get_one::<String>("logfile") {
                 Some(logfile) => std::path::PathBuf::from(logfile),
-                None => RuntimeLock::get_durable_cache_home().join("durable.log"),
+                None => RuntimeLock::get_endur_cache_home().join("endur.log"),
             };
 
             if let Some(parent) = logfile_path.parent() {
@@ -235,7 +235,7 @@ async fn main() {
                 }))
                 .init();
 
-            info!("Started serving with durable v{}", crate_version!());
+            info!("Started serving with endur v{}", crate_version!());
             poller::start().await;
         }
         Some(("watch", arg_matches)) => {
@@ -311,7 +311,7 @@ async fn main() {
                     if snapshots.is_empty() {
                         println!("No snapshots found in repository: {}", dir.display());
                     } else {
-                        println!("Durable Snapshots for repository: {}", dir.display());
+                        println!("Endur Snapshots for repository: {}", dir.display());
                         println!(
                             "{:<40} {:<25} {:<10}",
                             "Commit Hash", "Date/Time", "Changes"
@@ -338,7 +338,7 @@ async fn main() {
         }
         Some(("restore", arg_matches)) => {
             let (dir, hash, files_to_restore) = if arg_matches.get_flag("interactive") {
-                match durable::tui::run_interactive() {
+                match endur::tui::run_interactive() {
                     Ok(Some((repo, hash, files))) => (repo, hash, files),
                     Ok(None) => {
                         println!("Interactive restore cancelled.");
@@ -408,7 +408,7 @@ async fn main() {
                 println!("Cleaned up configuration successfully.");
 
                 // Notify daemon
-                let _ = durable::poller::send_uds_command("reload").await;
+                let _ = endur::poller::send_uds_command("reload").await;
             }
         }
         Some(("service", arg_matches)) => match arg_matches.subcommand() {
@@ -450,7 +450,7 @@ async fn watch_dir(path: &std::path::Path, watch_config: WatchConfig) {
     config.save();
 
     // Notify daemon
-    let _ = durable::poller::send_uds_command("reload").await;
+    let _ = endur::poller::send_uds_command("reload").await;
 }
 
 async fn unwatch_dir(path: &std::path::Path) {
@@ -471,7 +471,7 @@ async fn unwatch_dir(path: &std::path::Path) {
     config.save();
 
     // Notify daemon
-    let _ = durable::poller::send_uds_command("reload").await;
+    let _ = endur::poller::send_uds_command("reload").await;
 }
 
 #[cfg(unix)]
@@ -484,9 +484,9 @@ fn check_if_user() -> bool {
     true
 }
 
-/// Stops the running durable poller.
+/// Stops the running endur poller.
 async fn kill() {
-    match durable::poller::send_uds_command("kill").await {
+    match endur::poller::send_uds_command("kill").await {
         Ok(res) => {
             println!("Sent kill command to daemon: {res}");
         }
@@ -495,21 +495,21 @@ async fn kill() {
                 let mut runtime_lock = RuntimeLock::load();
                 runtime_lock.pid = None;
                 runtime_lock.save();
-                println!("Durable server terminated via lock file fallback.");
+                println!("Endur server terminated via lock file fallback.");
             } else {
-                println!("Durable server is not running.");
+                println!("Endur server is not running.");
             }
         }
     }
 }
 
 fn print_version_info() {
-    let suffix = option_env!("DURABLE_VERSION_SUFFIX")
+    let suffix = option_env!("ENDUR_VERSION_SUFFIX")
         .map(|v| format!(" @ {v}"))
         .unwrap_or_else(|| String::from(""));
     let version = format!("{}{}", crate_version!(), suffix);
 
-    println!("durable {version}");
+    println!("endur {version}");
     println!("  TUI: Enabled (ratatui 0.30)");
     println!("  IPC: Unix Domain Sockets (UDS)");
     println!("  Locking: Advisory File Locks (fs2)");

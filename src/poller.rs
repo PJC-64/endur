@@ -147,7 +147,7 @@ pub fn socket_path() -> std::path::PathBuf {
     RuntimeLock::default_path()
         .parent()
         .unwrap()
-        .join("durable.sock")
+        .join("endur.sock")
 }
 
 #[cfg(unix)]

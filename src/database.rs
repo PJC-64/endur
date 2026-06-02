@@ -22,31 +22,31 @@ impl RuntimeLock {
     }
 
     pub fn default_path() -> PathBuf {
-        Self::get_durable_cache_home().join("runtime.db")
+        Self::get_endur_cache_home().join("runtime.db")
     }
 
     pub fn lock_path() -> PathBuf {
-        Self::get_durable_cache_home().join("runtime.lock")
+        Self::get_endur_cache_home().join("runtime.lock")
     }
 
     /// Location of all database files. By default
     ///
-    /// Linux   :   $XDG_CACHE_HOME/durable or $HOME/.cache/durable
+    /// Linux   :   $XDG_CACHE_HOME/endur or $HOME/.cache/endur
     /// macOS   :   $HOME/Library/Caches
-    /// Windows :   %AppData%\Local\durable
+    /// Windows :   %AppData%\Local\endur
     ///
-    /// This can be overridden by setting DURABLE_CACHE_HOME environment variable.
-    pub fn get_durable_cache_home() -> PathBuf {
-        if let Ok(env_var) = env::var("DURABLE_CACHE_HOME") {
+    /// This can be overridden by setting ENDUR_CACHE_HOME environment variable.
+    pub fn get_endur_cache_home() -> PathBuf {
+        if let Ok(env_var) = env::var("ENDUR_CACHE_HOME") {
             if !env_var.is_empty() {
                 return env_var.into();
             }
         }
 
         dirs::cache_dir()
-            .expect("Could not find your cache directory. The default is ~/.cache/durable but it can also \
-                be controlled by setting the DURABLE_CACHE_HOME environment variable.")
-            .join("durable")
+            .expect("Could not find your cache directory. The default is ~/.cache/endur but it can also \
+                be controlled by setting the ENDUR_CACHE_HOME environment variable.")
+            .join("endur")
     }
 
     /// Load Config from default path
@@ -114,8 +114,8 @@ impl RuntimeLock {
             create_dir_all(dir).unwrap_or_else(|_| {
                 panic!(
                     "Failed to create directory at `{}`.\
-                    Durable stores its runtime cache in `{}/runtime.db`. \
-                    See https://github.com/tkellogg/durable for more information.",
+                    Endur stores its runtime cache in `{}/runtime.db`. \
+                    See https://github.com/PJC-64/endur for more information.",
                     dir.display(),
                     path.display()
                 )

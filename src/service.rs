@@ -30,7 +30,7 @@ pub fn install() -> Result<()> {
     let exe_path = env::current_exe().context("Failed to get current executable path")?;
     let home = dirs::home_dir().ok_or_else(|| anyhow!("Could not determine home directory"))?;
     let launch_agents_dir = home.join("Library").join("LaunchAgents");
-    let plist_path = launch_agents_dir.join("com.durable.daemon.plist");
+    let plist_path = launch_agents_dir.join("com.endur.daemon.plist");
 
     println!(
         "Creating startup service config at: {}",
@@ -45,7 +45,7 @@ pub fn install() -> Result<()> {
 <plist version="1.0">
 <dict>
     <key>Label</key>
-    <string>com.durable.daemon</string>
+    <string>com.endur.daemon</string>
     <key>ProgramArguments</key>
     <array>
         <string>{}</string>
@@ -79,7 +79,7 @@ pub fn install() -> Result<()> {
 
     match status {
         Ok(s) if s.success() => {
-            println!("Durable startup service successfully installed and started.");
+            println!("Endur startup service successfully installed and started.");
             Ok(())
         }
         _ => {
@@ -90,7 +90,7 @@ pub fn install() -> Result<()> {
                 .status()
                 .context("Failed to execute launchctl load")?;
             if load_status.success() {
-                println!("Durable startup service successfully loaded.");
+                println!("Endur startup service successfully loaded.");
                 Ok(())
             } else {
                 Err(anyhow!("Failed to register service with launchctl"))
@@ -105,7 +105,7 @@ pub fn uninstall() -> Result<()> {
     let plist_path = home
         .join("Library")
         .join("LaunchAgents")
-        .join("com.durable.daemon.plist");
+        .join("com.endur.daemon.plist");
 
     if !plist_path.exists() {
         println!("Service configuration file does not exist. Service is not installed.");
@@ -146,7 +146,7 @@ pub fn uninstall() -> Result<()> {
 
     println!("Removing configuration file: {}", plist_path.display());
     fs::remove_file(&plist_path).context("Failed to remove plist file")?;
-    println!("Durable startup service successfully uninstalled.");
+    println!("Endur startup service successfully uninstalled.");
     Ok(())
 }
 
@@ -155,7 +155,7 @@ pub fn install() -> Result<()> {
     let exe_path = env::current_exe().context("Failed to get current executable path")?;
     let home = dirs::home_dir().ok_or_else(|| anyhow!("Could not determine home directory"))?;
     let systemd_dir = home.join(".config").join("systemd").join("user");
-    let service_path = systemd_dir.join("durable.service");
+    let service_path = systemd_dir.join("endur.service");
 
     println!(
         "Creating systemd service config at: {}",
@@ -165,7 +165,7 @@ pub fn install() -> Result<()> {
 
     let service_content = format!(
         r#"[Unit]
-Description=Durable Git Auto-Backup Daemon
+Description=Endur Git Auto-Backup Daemon
 After=default.target
 
 [Service]
@@ -190,25 +190,25 @@ WantedBy=default.target
         return Err(anyhow!("systemctl daemon-reload failed"));
     }
 
-    println!("Enabling durable service...");
+    println!("Enabling endur service...");
     let status = Command::new("systemctl")
-        .args(["--user", "enable", "durable"])
+        .args(["--user", "enable", "endur"])
         .status()
         .context("Failed to run 'systemctl --user enable'")?;
     if !status.success() {
         return Err(anyhow!("systemctl enable failed"));
     }
 
-    println!("Starting durable service...");
+    println!("Starting endur service...");
     let status = Command::new("systemctl")
-        .args(["--user", "start", "durable"])
+        .args(["--user", "start", "endur"])
         .status()
         .context("Failed to run 'systemctl --user start'")?;
     if !status.success() {
         return Err(anyhow!("systemctl start failed"));
     }
 
-    println!("Durable startup service successfully installed and started.");
+    println!("Endur startup service successfully installed and started.");
     Ok(())
 }
 
@@ -219,21 +219,21 @@ pub fn uninstall() -> Result<()> {
         .join(".config")
         .join("systemd")
         .join("user")
-        .join("durable.service");
+        .join("endur.service");
 
     if !service_path.exists() {
         println!("Service configuration file does not exist. Service is not installed.");
         return Ok(());
     }
 
-    println!("Stopping durable service...");
+    println!("Stopping endur service...");
     let _ = Command::new("systemctl")
-        .args(["--user", "stop", "durable"])
+        .args(["--user", "stop", "endur"])
         .status();
 
-    println!("Disabling durable service...");
+    println!("Disabling endur service...");
     let _ = Command::new("systemctl")
-        .args(["--user", "disable", "durable"])
+        .args(["--user", "disable", "endur"])
         .status();
 
     println!("Removing configuration file: {}", service_path.display());
@@ -244,7 +244,7 @@ pub fn uninstall() -> Result<()> {
         .args(["--user", "daemon-reload"])
         .status();
 
-    println!("Durable startup service successfully uninstalled.");
+    println!("Endur startup service successfully uninstalled.");
     Ok(())
 }
 

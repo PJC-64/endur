@@ -90,8 +90,8 @@ impl PollGuard {
             SystemTime::UNIX_EPOCH.add(Duration::from_secs(commit.time().seconds() as u64))
         }
 
-        fn get_durable_time(head: &Commit, repo: &Repository) -> Result<SystemTime> {
-            let branch_name = format!("durable/{}", head.id());
+        fn get_endur_time(head: &Commit, repo: &Repository) -> Result<SystemTime> {
+            let branch_name = format!("endur/{}", head.id());
             let ret = repo
                 .find_branch(&branch_name, BranchType::Local)?
                 .get()
@@ -101,7 +101,7 @@ impl PollGuard {
 
         // get commit time and fallback to time of HEAD
         let head = repo.head()?.peel_to_commit()?;
-        Ok(get_durable_time(&head, repo).unwrap_or_else(|_| get_time(&head)))
+        Ok(get_endur_time(&head, repo).unwrap_or_else(|_| get_time(&head)))
     }
 }
 

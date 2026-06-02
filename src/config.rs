@@ -43,7 +43,7 @@ impl Default for WatchConfig {
 #[derive(Debug, Serialize, Deserialize, PartialEq, Eq)]
 pub struct Config {
     // When commit_exclude_git_config is true,
-    // never use any git configuration to sign durable's commits.
+    // never use any git configuration to sign endur's commits.
     // Defaults to false
     #[serde(default)]
     pub commit_exclude_git_config: bool,
@@ -58,12 +58,12 @@ impl Config {
 
     fn get_symbols() -> &'static [&'static str; 8] {
         // Check environment variable first (explicit override)
-        if std::env::var("DURABLE_PLAIN_TEXT").is_ok() {
+        if std::env::var("ENDUR_PLAIN_TEXT").is_ok() {
             return &Self::SYMBOLS_PLAIN;
         }
 
-        // Check if DURABLE_FANCY is set (explicit override)
-        if std::env::var("DURABLE_FANCY").is_ok() {
+        // Check if ENDUR_FANCY is set (explicit override)
+        if std::env::var("ENDUR_FANCY").is_ok() {
             return &Self::SYMBOLS_FANCY;
         }
 
@@ -101,28 +101,28 @@ impl Config {
     }
 
     pub fn default_path() -> Result<PathBuf> {
-        Ok(Self::get_durable_config_home()?.join("config.toml"))
+        Ok(Self::get_endur_config_home()?.join("config.toml"))
     }
 
     /// Location of all config. By default
     ///
-    /// Linux   :   $XDG_CONFIG_HOME/durable or $HOME/.config/durable
+    /// Linux   :   $XDG_CONFIG_HOME/endur or $HOME/.config/endur
     /// macOS   :   $HOME/Library/Application Support
-    /// Windows :   %AppData%\Roaming\durable
+    /// Windows :   %AppData%\Roaming\endur
     ///
-    /// This can be overridden by setting DURABLE_CONFIG_HOME environment variable.
-    fn get_durable_config_home() -> Result<PathBuf> {
+    /// This can be overridden by setting ENDUR_CONFIG_HOME environment variable.
+    fn get_endur_config_home() -> Result<PathBuf> {
         // The environment variable lets us run tests independently, but I'm sure someone will come
         // up with another reason to use it.
-        if let Ok(env_var) = env::var("DURABLE_CONFIG_HOME") {
+        if let Ok(env_var) = env::var("ENDUR_CONFIG_HOME") {
             if !env_var.is_empty() {
                 return Ok(env_var.into());
             }
         }
 
         dirs::config_dir()
-            .map(|dir| dir.join("durable"))
-            .ok_or_else(|| "Could not find your config directory. The default is ~/.config/durable but it can also be controlled by setting the DURABLE_CONFIG_HOME environment variable.".into())
+            .map(|dir| dir.join("endur"))
+            .ok_or_else(|| "Could not find your config directory. The default is ~/.config/endur but it can also be controlled by setting the ENDUR_CONFIG_HOME environment variable.".into())
     }
 
     /// Load Config from default path
@@ -143,7 +143,7 @@ impl Config {
         Ok(res)
     }
 
-    /// Save config to disk in ~/.config/durable/config.toml
+    /// Save config to disk in ~/.config/endur/config.toml
     pub fn save(&self) {
         match Self::default_path() {
             Ok(path) => self.save_to_path(&path),
@@ -155,9 +155,9 @@ impl Config {
         if let Some(dir) = path.parent() {
             create_dir_all(dir)
                 .map_err(|e| format!("Failed to create directory at `{}`: {}. \
-                    Durable stores its configuration in `{}/config.toml`, \
-                    where you can instruct durable to watch patterns of Git repositories, among other things. \
-                    See https://github.com/tkellogg/durable for more information.", dir.display(), e, path.display()).into())
+                    Endur stores its configuration in `{}/config.toml`, \
+                    where you can instruct endur to watch patterns of Git repositories, among other things. \
+                    See https://github.com/PJC-64/endur for more information.", dir.display(), e, path.display()).into())
         } else {
             Ok(())
         }
@@ -180,7 +180,7 @@ impl Config {
 
         match fs::write(path, config_string) {
             Ok(_) => (),
-            Err(e) => println!("Unable to initialize durable config file: {e}"),
+            Err(e) => println!("Unable to initialize endur config file: {e}"),
         }
     }
 
@@ -237,7 +237,7 @@ impl Config {
         for oid in revwalk.flatten() {
             if let Ok(commit) = repo.find_commit(oid) {
                 if let Some(message) = commit.message() {
-                    if message.ends_with("durable auto-backup") {
+                    if message.ends_with("endur auto-backup") {
                         backup_count += 1;
                         let commit_time = commit.time().seconds();
                         if commit_time > latest_time {
@@ -256,7 +256,7 @@ impl Config {
         let symbols = Self::get_symbols();
         let [ok, modified, error, _warning, _info, _time, _stats, _folder] = symbols;
 
-        println!("Durable Status Summary");
+        println!("Endur Status Summary");
         println!("-------------------");
 
         // Add server status at the top

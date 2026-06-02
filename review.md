@@ -1,6 +1,6 @@
-# Durable Code Review
+# Endur Code Review
 
-This review covers a number of changes to the `durable` codebase to improve error handling, code quality, and performance.
+This review covers a number of changes to the `endur` codebase to improve error handling, code quality, and performance.
 
 ## Warnings Fixed
 
@@ -19,7 +19,7 @@ The codebase made extensive use of `expect`, `panic!`, and `unwrap`, which can l
     *   Replaced `expect` with a `match` statement in `watch_dir` and `unwatch_dir` when converting a path to a string.
     *   Updated `watch_dir` and `unwatch_dir` to handle the `Result` returned by `set_watch` and `set_unwatch`.
 *   In `src/config.rs`:
-    *   `get_dura_config_home` now returns a `Result` and the callers have been updated to handle it.
+    *   `get_endur_config_home` now returns a `Result` and the callers have been updated to handle it.
     *   `create_dir` now returns a `Result` and the caller has been updated to handle it.
     *   `set_watch` and `set_unwatch` now return a `Result` instead of printing to the console.
 

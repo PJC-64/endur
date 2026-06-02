@@ -11,13 +11,13 @@ jobs:
         include:
           - os: ubuntu-latest
             binary-suffix: linux-x86_64
-            binary-name: durable
+            binary-name: endur
           - os: macos-latest
             binary-suffix: macos-x86_64
-            binary-name: durable
+            binary-name: endur
           - os: windows-latest
             binary-suffix: windows-x86_64
-            binary-name: durable.exe
+            binary-name: endur.exe
         os: [ ubuntu-latest, macos-latest, windows-latest ]
 
     steps:
@@ -75,6 +75,5 @@ jobs:
       - name: Upload Binary
         uses: actions/upload-artifact@v7
         with:
-          name: durable-${{ matrix.binary-suffix }}_${{ github.sha }}
+          name: endur-${{ matrix.binary-suffix }}_${{ github.sha }}
           path: ${{ github.workspace }}/target/release/${{ matrix.binary-name }}
-

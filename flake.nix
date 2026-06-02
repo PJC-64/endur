@@ -1,5 +1,5 @@
 {
-  description = "Dura build and development environment";
+  description = "Endur build and development environment";
 
   # Provides abstraction to boiler-code when specifying multi-platform outputs.
   inputs = {
@@ -18,8 +18,8 @@
           overlays = [ rust-overlay.overlay ];
         };
 
-        dura = pkgs.rustPlatform.buildRustPackage {
-          pname = "dura";
+        endur = pkgs.rustPlatform.buildRustPackage {
+          pname = "endur";
           version = "${shortRev}";
           description = "A background process that saves uncommited changes on git";
 
@@ -38,22 +38,22 @@
             pkgs.pkg-config
           ];
 
-          DURA_VERSION_SUFFIX = "${shortRev}";
+          ENDUR_VERSION_SUFFIX = "${shortRev}";
         };
 
         packages = flake-utils.lib.flattenTree {
-          inherit dura;
+          inherit endur;
         };
 
         apps = {
-          dura = flake-utils.lib.mkApp { drv = packages.dura; };
+          endur = flake-utils.lib.mkApp { drv = packages.endur; };
         };
       in
       rec {
-        defaultPackage = packages.dura;
-        defaultApp = apps.dura;
+        defaultPackage = packages.endur;
+        defaultApp = apps.endur;
         devShell = pkgs.mkShell {
-          DURA_VERSION_SUFFIX = dura.version;
+          ENDUR_VERSION_SUFFIX = endur.version;
           RUST_SRC_PATH = "${pkgs.rust.packages.stable.rustPlatform.rustLibSrc}";
 
           buildInputs = [

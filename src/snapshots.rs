@@ -7,7 +7,7 @@ use crate::config::Config;
 
 #[derive(Debug, Serialize, Deserialize, Eq, PartialEq)]
 pub struct CaptureStatus {
-    pub durable_branch: String,
+    pub endur_branch: String,
     pub commit_hash: String,
     pub base_hash: String,
 }
@@ -16,8 +16,8 @@ impl fmt::Display for CaptureStatus {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         write!(
             f,
-            "durable: {}, commit_hash: {}, base: {}",
-            self.durable_branch, self.commit_hash, self.base_hash
+            "endur: {}, commit_hash: {}, base: {}",
+            self.endur_branch, self.commit_hash, self.base_hash
         )
     }
 }
@@ -29,20 +29,20 @@ pub fn is_repo(path: &Path) -> bool {
 pub fn capture(path: &Path) -> Result<Option<CaptureStatus>, Error> {
     let repo = Repository::open(path)?;
     let head = repo.head()?.peel_to_commit()?;
-    let message = "durable auto-backup";
+    let message = "endur auto-backup";
 
     // status check
     if repo.statuses(None)?.is_empty() {
         return Ok(None);
     }
 
-    let branch_name = format!("durable/{}", head.id());
+    let branch_name = format!("endur/{}", head.id());
     let branch_commit = match repo.find_branch(&branch_name, BranchType::Local) {
         Ok(mut branch) => {
             match branch.get().peel_to_commit() {
                 Ok(commit) if commit.id() != head.id() => Some(commit),
                 _ => {
-                    // Durable branch exists but no commit is made by durable
+                    // Endur branch exists but no commit is made by endur
                     // So we clean this branch
                     branch.delete()?;
                     None
@@ -54,7 +54,7 @@ pub fn capture(path: &Path) -> Result<Option<CaptureStatus>, Error> {
     let parent_commit = branch_commit.as_ref().unwrap_or(&head);
 
     // tree
-    let index_path = repo.path().join("durable_index");
+    let index_path = repo.path().join("endur_index");
     let mut index = git2::Index::open(&index_path)?;
     index.read_tree(&parent_commit.tree()?)?;
     repo.set_index(&mut index)?;
@@ -87,19 +87,19 @@ pub fn capture(path: &Path) -> Result<Option<CaptureStatus>, Error> {
     )?;
 
     Ok(Some(CaptureStatus {
-        durable_branch: branch_name,
+        endur_branch: branch_name,
         commit_hash: oid.to_string(),
         base_hash: head.id().to_string(),
     }))
 }
 
 fn get_git_author(repo: &Repository) -> String {
-    let durable_cfg = Config::load();
-    if let Some(value) = durable_cfg.commit_author {
+    let endur_cfg = Config::load();
+    if let Some(value) = endur_cfg.commit_author {
         return value;
     }
 
-    if !durable_cfg.commit_exclude_git_config {
+    if !endur_cfg.commit_exclude_git_config {
         if let Ok(git_cfg) = repo.config() {
             if let Ok(value) = git_cfg.get_string("user.name") {
                 return value;
@@ -107,16 +107,16 @@ fn get_git_author(repo: &Repository) -> String {
         }
     }
 
-    "durable".to_string()
+    "endur".to_string()
 }
 
 fn get_git_email(repo: &Repository) -> String {
-    let durable_cfg = Config::load();
-    if let Some(value) = durable_cfg.commit_email {
+    let endur_cfg = Config::load();
+    if let Some(value) = endur_cfg.commit_email {
         return value;
     }
 
-    if !durable_cfg.commit_exclude_git_config {
+    if !endur_cfg.commit_exclude_git_config {
         if let Ok(git_cfg) = repo.config() {
             if let Ok(value) = git_cfg.get_string("user.email") {
                 return value;
@@ -124,7 +124,7 @@ fn get_git_email(repo: &Repository) -> String {
         }
     }
 
-    "durable@github.io".to_string()
+    "endur@github.io".to_string()
 }
 
 #[derive(Debug, Serialize, Deserialize, Eq, PartialEq)]
@@ -143,13 +143,13 @@ pub fn list_snapshots(path: &Path) -> Result<Vec<SnapshotInfo>, Error> {
     if let Ok(branches) = repo.branches(Some(BranchType::Local)) {
         for (branch, _) in branches.flatten() {
             if let Ok(Some(name_str)) = branch.name() {
-                if name_str.starts_with("durable/") {
+                if name_str.starts_with("endur/") {
                     if let Some(target) = branch.get().target() {
                         if let Ok(mut revwalk) = repo.revwalk() {
                             if revwalk.push(target).is_ok() {
                                 for oid in revwalk.flatten() {
                                     if let Ok(commit) = repo.find_commit(oid) {
-                                        if commit.summary() == Some("durable auto-backup") {
+                                        if commit.summary() == Some("endur auto-backup") {
                                             let parent_hash = if commit.parent_count() > 0 {
                                                 commit
                                                     .parent_id(0)
