@@ -5,9 +5,9 @@ edition = "2021"
 authors = ["Tim Kellogg and the Internet"]
 description = "Durable backs up your work automatically via Git commits."
 license = "Apache-2.0"
-homepage = "https://github.com/tkellogg/durable/"
-repository = "https://github.com/tkellogg/durable/"
-documentation = "https://github.com/tkellogg/durable/blob/master/README.md"
+homepage = "https://github.com/PJC-64/durable/"
+repository = "https://github.com/PJC-64/durable/"
+documentation = "https://github.com/PJC-64/durable/blob/main/README.md"
 
 [dependencies]
 anyhow = "1.0.66"
