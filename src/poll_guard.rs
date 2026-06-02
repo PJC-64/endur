@@ -7,7 +7,7 @@ use std::path::{Path, PathBuf};
 use std::time::{Duration, SystemTime};
 
 use anyhow::Result;
-use walkdir::{DirEntry, WalkDir};
+use walkdir::WalkDir;
 
 /// OPTIMIZATION for checking for changes
 ///
@@ -38,18 +38,40 @@ impl PollGuard {
             Ok(duration.as_secs_f32() > 1.0)
         }
 
-        fn get_file_time(entry: walkdir::Result<DirEntry>) -> Result<SystemTime> {
-            Ok(entry?.metadata()?.modified()?)
+        let mut it = WalkDir::new(dir).into_iter();
+        loop {
+            let entry = match it.next() {
+                None => break,
+                Some(Err(_)) => continue,
+                Some(Ok(entry)) => entry,
+            };
+            if entry.file_name() == ".git" {
+                it.skip_current_dir();
+                continue;
+            }
+            if let Ok(metadata) = entry.metadata() {
+                if metadata.is_file() {
+                    if let Ok(modified) = metadata.modified() {
+                        if compare_times(modified, watermark).unwrap_or(false) {
+                            dbg!(modified, watermark);
+                            return true;
+                        }
+                    }
+                }
+            }
         }
 
-        for entry in WalkDir::new(dir) {
-            if let Ok(modified) = get_file_time(entry) {
+        // Manually check .git/HEAD
+        let head_path = dir.join(".git").join("HEAD");
+        if let Ok(metadata) = head_path.metadata() {
+            if let Ok(modified) = metadata.modified() {
                 if compare_times(modified, watermark).unwrap_or(false) {
                     dbg!(modified, watermark);
                     return true;
                 }
             }
         }
+
         false
     }
 
