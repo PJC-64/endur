@@ -107,13 +107,6 @@ For more details on commands and recovery, see the [User Guide](docs/user_guide.
 
 ## Install
 
-### Cargo Install
-1. Install Cargo  
-2. To install the release version, run:
-   ```bash
-   cargo install durable
-   ```
-
 ### By Source
 
 1. Install Rust (e.g., `brew install rustup && brew install rust`)
