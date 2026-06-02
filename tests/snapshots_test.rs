@@ -15,7 +15,10 @@ fn change_single_file() {
     let status = snapshots::capture(repo.dir.as_path()).unwrap().unwrap();
 
     assert_ne!(status.commit_hash, status.base_hash);
-    assert_eq!(status.durable_branch, format!("durable/{}", status.base_hash));
+    assert_eq!(
+        status.durable_branch,
+        format!("durable/{}", status.base_hash)
+    );
 }
 
 #[test]
@@ -55,7 +58,10 @@ fn during_merge_conflicts() {
 
     // Regular durable commit
     assert_ne!(status.commit_hash, status.base_hash);
-    assert_eq!(status.durable_branch, format!("durable/{}", status.base_hash));
+    assert_eq!(
+        status.durable_branch,
+        format!("durable/{}", status.base_hash)
+    );
 }
 
 #[test]
@@ -154,20 +160,20 @@ fn test_index_isolation() {
     // Stage a change in the standard index
     repo.change_file("foo.txt");
     repo.git(&["add", "foo.txt"]).unwrap();
-    
+
     // Now make another unstaged modification in the working tree
     repo.write_file("bar.txt");
 
     // Get the status of standard index before durable capture
     let git_status_before = repo.git(&["status", "--porcelain"]).unwrap();
-    
+
     // Run durable capture
     let status = snapshots::capture(repo.dir.as_path()).unwrap().unwrap();
     assert_ne!(status.commit_hash, status.base_hash);
 
     // Get the status of standard index after durable capture
     let git_status_after = repo.git(&["status", "--porcelain"]).unwrap();
-    
+
     // Assert that the standard git index status is completely unchanged
     assert_eq!(git_status_before, git_status_after);
 }
@@ -246,7 +252,7 @@ fn test_discrete_restore() {
     let tmp = tempfile::tempdir().unwrap();
     let mut repo = util::git_repo::GitRepo::new(tmp.path().to_path_buf());
     repo.init();
-    
+
     // Create two files
     repo.write_file("foo.txt");
     repo.write_file("bar.txt");
@@ -268,7 +274,8 @@ fn test_discrete_restore() {
         repo.dir.as_path(),
         &status.commit_hash,
         Some(&["foo.txt".to_string()]),
-    ).unwrap();
+    )
+    .unwrap();
     assert_eq!(changes.len(), 1);
     assert_eq!(changes[0].1, "foo.txt");
 
@@ -298,4 +305,3 @@ fn test_get_snapshot_files() {
     assert!(paths.contains(&"foo.txt".to_string()));
     assert!(paths.contains(&"new_file.txt".to_string()));
 }
-

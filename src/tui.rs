@@ -1,5 +1,5 @@
-use std::io;
-use std::path::PathBuf;
+use crate::config::Config;
+use crate::snapshots::{self, SnapshotInfo};
 use chrono::TimeZone;
 use ratatui::{
     backend::CrosstermBackend,
@@ -9,11 +9,11 @@ use ratatui::{
     },
     layout::{Constraint, Direction, Layout},
     style::{Color, Modifier, Style},
-    widgets::{Block, Borders, BorderType, List, ListItem, ListState, Paragraph},
+    widgets::{Block, BorderType, Borders, List, ListItem, ListState, Paragraph},
     Terminal,
 };
-use crate::config::Config;
-use crate::snapshots::{self, SnapshotInfo};
+use std::io;
+use std::path::PathBuf;
 
 struct TerminalGuard;
 
@@ -121,7 +121,8 @@ impl TuiState {
                 if repo_idx < self.repos.len() && snap_idx < self.snapshots.len() {
                     let repo_path = &self.repos[repo_idx];
                     let commit_hash = &self.snapshots[snap_idx].commit_hash;
-                    self.files = snapshots::get_snapshot_files(repo_path, commit_hash).unwrap_or_default();
+                    self.files =
+                        snapshots::get_snapshot_files(repo_path, commit_hash).unwrap_or_default();
                     return;
                 }
             }
@@ -249,7 +250,9 @@ impl TuiState {
     }
 }
 
-pub fn run_interactive() -> Result<Option<(PathBuf, String, Option<Vec<String>>)>, Box<dyn std::error::Error>> {
+#[allow(clippy::type_complexity)]
+pub fn run_interactive(
+) -> Result<Option<(PathBuf, String, Option<Vec<String>>)>, Box<dyn std::error::Error>> {
     let mut repos: Vec<PathBuf> = Config::load().git_repos().collect();
     repos.sort();
 
@@ -443,9 +446,9 @@ pub fn run_interactive() -> Result<Option<(PathBuf, String, Option<Vec<String>>)
                             };
                             use ratatui::text::{Line, Span};
                             let line = Line::from(vec![
-                                Span::raw(format!("{} ", check)),
-                                Span::styled(format!("[{}]", status), status_style),
-                                Span::raw(format!(" {}", path)),
+                                Span::raw(format!("{check} ")),
+                                Span::styled(format!("[{status}]"), status_style),
+                                Span::raw(format!(" {path}")),
                             ]);
                             ListItem::new(line)
                         })
@@ -491,141 +494,126 @@ pub fn run_interactive() -> Result<Option<(PathBuf, String, Option<Vec<String>>)
                 if key.kind == KeyEventKind::Press {
                     match key.code {
                         KeyCode::Char('q') => return Ok(None),
-                        KeyCode::Esc => {
-                            match state.focus {
-                                Focus::Repos => return Ok(None),
-                                Focus::Snapshots => {
+                        KeyCode::Esc => match state.focus {
+                            Focus::Repos => return Ok(None),
+                            Focus::Snapshots => {
+                                state.in_repo_select = true;
+                                state.focus = Focus::Repos;
+                            }
+                            Focus::Files => {
+                                state.focus = Focus::Snapshots;
+                                state.files_state.select(None);
+                            }
+                        },
+                        KeyCode::Backspace => match state.focus {
+                            Focus::Repos => {}
+                            Focus::Snapshots => {
+                                state.in_repo_select = true;
+                                state.focus = Focus::Repos;
+                            }
+                            Focus::Files => {
+                                state.focus = Focus::Snapshots;
+                                state.files_state.select(None);
+                            }
+                        },
+                        KeyCode::Up => match state.focus {
+                            Focus::Repos => state.prev_repo(),
+                            Focus::Snapshots => state.prev_snapshot(),
+                            Focus::Files => state.prev_file(),
+                        },
+                        KeyCode::Down => match state.focus {
+                            Focus::Repos => state.next_repo(),
+                            Focus::Snapshots => state.next_snapshot(),
+                            Focus::Files => state.next_file(),
+                        },
+                        KeyCode::Left => match state.focus {
+                            Focus::Repos => {}
+                            Focus::Snapshots => {
+                                state.in_repo_select = true;
+                                state.focus = Focus::Repos;
+                            }
+                            Focus::Files => {
+                                state.focus = Focus::Snapshots;
+                                state.files_state.select(None);
+                            }
+                        },
+                        KeyCode::Right => match state.focus {
+                            Focus::Repos => {
+                                if !state.snapshots.is_empty() {
+                                    state.in_repo_select = false;
+                                    state.focus = Focus::Snapshots;
+                                }
+                            }
+                            Focus::Snapshots => {
+                                if !state.files.is_empty() {
+                                    state.focus = Focus::Files;
+                                    state.files_state.select(Some(0));
+                                }
+                            }
+                            Focus::Files => {}
+                        },
+                        KeyCode::Tab => match state.focus {
+                            Focus::Repos => {
+                                if !state.snapshots.is_empty() {
+                                    state.in_repo_select = false;
+                                    state.focus = Focus::Snapshots;
+                                }
+                            }
+                            Focus::Snapshots => {
+                                if !state.files.is_empty() {
+                                    state.focus = Focus::Files;
+                                    state.files_state.select(Some(0));
+                                } else {
                                     state.in_repo_select = true;
                                     state.focus = Focus::Repos;
                                 }
-                                Focus::Files => {
-                                    state.focus = Focus::Snapshots;
-                                    state.files_state.select(None);
-                                }
                             }
-                        }
-                        KeyCode::Backspace => {
-                            match state.focus {
-                                Focus::Repos => {}
-                                Focus::Snapshots => {
-                                    state.in_repo_select = true;
-                                    state.focus = Focus::Repos;
-                                }
-                                Focus::Files => {
-                                    state.focus = Focus::Snapshots;
-                                    state.files_state.select(None);
-                                }
+                            Focus::Files => {
+                                state.focus = Focus::Snapshots;
+                                state.files_state.select(None);
                             }
-                        }
-                        KeyCode::Up => {
-                            match state.focus {
-                                Focus::Repos => state.prev_repo(),
-                                Focus::Snapshots => state.prev_snapshot(),
-                                Focus::Files => state.prev_file(),
-                            }
-                        }
-                        KeyCode::Down => {
-                            match state.focus {
-                                Focus::Repos => state.next_repo(),
-                                Focus::Snapshots => state.next_snapshot(),
-                                Focus::Files => state.next_file(),
-                            }
-                        }
-                        KeyCode::Left => {
-                            match state.focus {
-                                Focus::Repos => {}
-                                Focus::Snapshots => {
-                                    state.in_repo_select = true;
-                                    state.focus = Focus::Repos;
-                                }
-                                Focus::Files => {
-                                    state.focus = Focus::Snapshots;
-                                    state.files_state.select(None);
-                                }
-                            }
-                        }
-                        KeyCode::Right => {
-                            match state.focus {
-                                Focus::Repos => {
-                                    if !state.snapshots.is_empty() {
-                                        state.in_repo_select = false;
-                                        state.focus = Focus::Snapshots;
-                                    }
-                                }
-                                Focus::Snapshots => {
-                                    if !state.files.is_empty() {
-                                        state.focus = Focus::Files;
-                                        state.files_state.select(Some(0));
-                                    }
-                                }
-                                Focus::Files => {}
-                            }
-                        }
-                        KeyCode::Tab => {
-                            match state.focus {
-                                Focus::Repos => {
-                                    if !state.snapshots.is_empty() {
-                                        state.in_repo_select = false;
-                                        state.focus = Focus::Snapshots;
-                                    }
-                                }
-                                Focus::Snapshots => {
-                                    if !state.files.is_empty() {
-                                        state.focus = Focus::Files;
-                                        state.files_state.select(Some(0));
-                                    } else {
-                                        state.in_repo_select = true;
-                                        state.focus = Focus::Repos;
-                                    }
-                                }
-                                Focus::Files => {
-                                    state.focus = Focus::Snapshots;
-                                    state.files_state.select(None);
-                                }
-                            }
-                        }
+                        },
                         KeyCode::Char(' ') => {
                             if state.focus == Focus::Files {
                                 state.toggle_selected_file();
                             }
                         }
-                        KeyCode::Enter => {
-                            match state.focus {
-                                Focus::Repos => {
-                                    if !state.snapshots.is_empty() {
-                                        state.in_repo_select = false;
-                                        state.focus = Focus::Snapshots;
+                        KeyCode::Enter => match state.focus {
+                            Focus::Repos => {
+                                if !state.snapshots.is_empty() {
+                                    state.in_repo_select = false;
+                                    state.focus = Focus::Snapshots;
+                                }
+                            }
+                            Focus::Snapshots => {
+                                if let Some(snap_idx) = state.selected_snapshot_idx() {
+                                    if let Some(repo_idx) = state.selected_repo_idx() {
+                                        let repo = state.repos[repo_idx].clone();
+                                        let hash = state.snapshots[snap_idx].commit_hash.clone();
+                                        return Ok(Some((repo, hash, None)));
                                     }
                                 }
-                                Focus::Snapshots => {
-                                    if let Some(snap_idx) = state.selected_snapshot_idx() {
-                                        if let Some(repo_idx) = state.selected_repo_idx() {
-                                            let repo = state.repos[repo_idx].clone();
-                                            let hash = state.snapshots[snap_idx].commit_hash.clone();
-                                            return Ok(Some((repo, hash, None)));
-                                        }
-                                    }
-                                }
-                                Focus::Files => {
-                                    if let Some(snap_idx) = state.selected_snapshot_idx() {
-                                        if let Some(repo_idx) = state.selected_repo_idx() {
-                                            let repo = state.repos[repo_idx].clone();
-                                            let hash = state.snapshots[snap_idx].commit_hash.clone();
-                                            
-                                            if !state.selected_files.is_empty() {
-                                                let files: Vec<String> = state.selected_files.iter().cloned().collect();
-                                                return Ok(Some((repo, hash, Some(files))));
-                                            } else if let Some(file_idx) = state.selected_file_idx() {
-                                                if file_idx < state.files.len() {
-                                                    let file = state.files[file_idx].1.clone();
-                                                    return Ok(Some((repo, hash, Some(vec![file]))));
-                                                }
+                            }
+                            Focus::Files => {
+                                if let Some(snap_idx) = state.selected_snapshot_idx() {
+                                    if let Some(repo_idx) = state.selected_repo_idx() {
+                                        let repo = state.repos[repo_idx].clone();
+                                        let hash = state.snapshots[snap_idx].commit_hash.clone();
+
+                                        if !state.selected_files.is_empty() {
+                                            let files: Vec<String> =
+                                                state.selected_files.iter().cloned().collect();
+                                            return Ok(Some((repo, hash, Some(files))));
+                                        } else if let Some(file_idx) = state.selected_file_idx() {
+                                            if file_idx < state.files.len() {
+                                                let file = state.files[file_idx].1.clone();
+                                                return Ok(Some((repo, hash, Some(vec![file]))));
                                             }
                                         }
                                     }
                                 }
                             }
-                        }
+                        },
                         _ => {}
                     }
                 }

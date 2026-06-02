@@ -1,8 +1,8 @@
+use ignore::gitignore::{Gitignore, GitignoreBuilder};
+use notify::{Event, RecommendedWatcher, RecursiveMode, Watcher};
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
-use notify::{Watcher, RecursiveMode, RecommendedWatcher, Event};
 use std::sync::{Arc, Mutex};
-use ignore::gitignore::{Gitignore, GitignoreBuilder};
 use tracing::{error, info};
 
 pub struct WatcherManager {
@@ -40,7 +40,7 @@ impl WatcherManager {
                                         }
                                     }
                                 }
-                                
+
                                 event_handler(repo_path.clone(), canon_path.clone());
                                 break;
                             }
@@ -50,13 +50,16 @@ impl WatcherManager {
             }
         })?;
 
-        Ok(Self { watcher, gitignores })
+        Ok(Self {
+            watcher,
+            gitignores,
+        })
     }
 
     pub fn watch_repo(&mut self, repo_path: &Path) {
         let repo_path = repo_path.to_path_buf();
         info!("Starting file watch for repo: {}", repo_path.display());
-        
+
         let mut builder = GitignoreBuilder::new(&repo_path);
         let gitignore_file = repo_path.join(".gitignore");
         if gitignore_file.exists() {
@@ -64,7 +67,10 @@ impl WatcherManager {
         }
         let gitignore = builder.build().unwrap_or_else(|_| Gitignore::empty());
 
-        self.gitignores.lock().unwrap().insert(repo_path.clone(), gitignore);
+        self.gitignores
+            .lock()
+            .unwrap()
+            .insert(repo_path.clone(), gitignore);
 
         if let Err(e) = self.watcher.watch(&repo_path, RecursiveMode::Recursive) {
             error!("Failed to watch path {}: {e}", repo_path.display());

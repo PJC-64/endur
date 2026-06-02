@@ -1,18 +1,18 @@
+use chrono::{DateTime, Local};
+use git2::Repository;
 use std::collections::BTreeMap;
 use std::fs::{create_dir_all, File};
+use std::io::IsTerminal;
 use std::io::{BufReader, Read};
 use std::path::{Path, PathBuf};
 use std::rc::Rc;
-use std::{env, fs};
 use std::time::SystemTime;
-use chrono::{DateTime, Local};
-use git2::Repository;
-use std::io::IsTerminal;
+use std::{env, fs};
 
 use serde::{Deserialize, Serialize};
 
-use crate::git_repo_iter::GitRepoIter;
 use crate::database::RuntimeLock;
+use crate::git_repo_iter::GitRepoIter;
 use crate::repo_status::RepoStatus;
 
 type Result<T> = std::result::Result<T, Box<dyn std::error::Error>>;
@@ -61,7 +61,7 @@ impl Config {
         if std::env::var("DURABLE_PLAIN_TEXT").is_ok() {
             return &Self::SYMBOLS_PLAIN;
         }
-        
+
         // Check if DURABLE_FANCY is set (explicit override)
         if std::env::var("DURABLE_FANCY").is_ok() {
             return &Self::SYMBOLS_FANCY;
@@ -187,7 +187,8 @@ impl Config {
     pub fn set_watch(&mut self, path: String, cfg: WatchConfig) -> Result<()> {
         let abs_path = fs::canonicalize(&path)
             .map_err(|e| format!("The provided path '{path}' is not a directory: {e}"))?;
-        let abs_path_str = abs_path.to_str()
+        let abs_path_str = abs_path
+            .to_str()
             .ok_or("The provided path is not valid unicode")?;
 
         if self.repos.contains_key(abs_path_str) {
@@ -202,7 +203,8 @@ impl Config {
     pub fn set_unwatch(&mut self, path: String) -> Result<()> {
         let abs_path = fs::canonicalize(&path)
             .map_err(|e| format!("The provided path '{path}' is not a directory: {e}"))?;
-        let abs_path_str = abs_path.to_str()
+        let abs_path_str = abs_path
+            .to_str()
             .ok_or("The provided path is not valid unicode")?;
 
         match self.repos.remove(abs_path_str) {
@@ -256,13 +258,14 @@ impl Config {
 
         println!("Durable Status Summary");
         println!("-------------------");
-        
+
         // Add server status at the top
         if RuntimeLock::is_active() {
             let runtime_lock = RuntimeLock::load();
             match runtime_lock.pid {
                 Some(pid) => {
-                    let uptime = runtime_lock.start_time
+                    let uptime = runtime_lock
+                        .start_time
                         .and_then(|start| SystemTime::now().duration_since(start).ok())
                         .map(|duration| {
                             let days = duration.as_secs() / 86400;
@@ -278,7 +281,7 @@ impl Config {
                         })
                         .unwrap_or_else(|| "unknown time".to_string());
                     println!("Server: Running (PID: {pid}, Uptime: {uptime})");
-                },
+                }
                 None => println!("Server: Running (PID: unknown, Uptime: unknown)"),
             }
         } else {
@@ -309,32 +312,40 @@ impl Config {
             }
 
             total_backups += status.backup_count;
-            
-            let commit_info = status.latest_commit_id
+
+            let commit_info = status
+                .latest_commit_id
                 .as_ref()
                 .map(|id| format!(" [{}]", &id[..7]))
                 .unwrap_or_default();
-            
+
             let time_info = if let Some(last_backup) = status.last_backup {
                 let datetime: DateTime<Local> = last_backup.into();
                 format!(" @ {}", datetime.format("%Y%m%d-%H%M%S"))
             } else {
                 String::new()
             };
-            
-            println!("{}{}: {} backups{}{}{}", 
+
+            println!(
+                "{}{}: {} backups{}{}{}",
                 if has_changes { modified } else { ok },
                 status.path.display(),
                 status.backup_count,
                 commit_info,
                 time_info,
-                if has_changes { " (uncommitted changes)" } else { "" }
+                if has_changes {
+                    " (uncommitted changes)"
+                } else {
+                    ""
+                }
             );
         }
 
         println!("\nOverall Status:");
-        println!("Watching {total_repos} repositories ({} accessible)", 
-                total_repos - inaccessible_repos);
+        println!(
+            "Watching {total_repos} repositories ({} accessible)",
+            total_repos - inaccessible_repos
+        );
         println!("Total backups: {total_backups}");
         if repos_with_changes > 0 {
             println!("Repositories with uncommitted changes: {repos_with_changes}");
@@ -358,15 +369,21 @@ impl Config {
             }
 
             if !status.is_git_repo {
-                let err_msg = status.git_error.as_deref().unwrap_or("Path is not a git repository");
+                let err_msg = status
+                    .git_error
+                    .as_deref()
+                    .unwrap_or("Path is not a git repository");
                 println!("  {error} Not a valid git repository: {err_msg}\n");
                 continue;
             }
 
             println!("  {ok} Valid Git repository");
-            
+
             for file in &status.changed_files {
-                println!("  {modified} Change detected: {} ({:?})", file.path, file.status);
+                println!(
+                    "  {modified} Change detected: {} ({:?})",
+                    file.path, file.status
+                );
             }
 
             if status.has_uncommitted_changes() {
@@ -379,9 +396,11 @@ impl Config {
                 if let Some(id) = &status.latest_commit_id {
                     if let Some(last_backup) = status.last_backup {
                         let datetime: DateTime<Local> = last_backup.into();
-                        println!("  {time} Last backup: {} ({})", 
-                               datetime.format("%Y-%m-%d %H:%M:%S"),
-                               &id[..7]);
+                        println!(
+                            "  {time} Last backup: {} ({})",
+                            datetime.format("%Y-%m-%d %H:%M:%S"),
+                            &id[..7]
+                        );
                     }
                 }
                 println!("  {stats} Total backups: {}", status.backup_count);

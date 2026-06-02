@@ -28,14 +28,18 @@ impl Daemon {
 
     /// Spawn another thread to watch the daemon log file. It tails the log file and sends each line
     /// over the channel.
-    fn attach(log_path: std::path::PathBuf, kill_sign: Arc<Mutex<i32>>) -> Receiver<Option<String>> {
+    fn attach(
+        log_path: std::path::PathBuf,
+        kill_sign: Arc<Mutex<i32>>,
+    ) -> Receiver<Option<String>> {
         fn is_ignored(msg: &str) -> bool {
             msg.contains("Started serving with dura")
         }
         let (sender, receiver) = channel();
         thread::spawn(move || {
             let mut file_opt = None;
-            for _ in 0..100 { // 5 seconds max wait
+            for _ in 0..100 {
+                // 5 seconds max wait
                 if *kill_sign.lock().unwrap() <= 0 {
                     return;
                 }
@@ -69,12 +73,11 @@ impl Daemon {
                         thread::sleep(Duration::from_millis(50));
                     }
                     Ok(_) => {
-                        if !line.is_empty() {
-                            if !is_ignored(line.as_str()) {
-                                if sender.send(Some(line)).is_err() {
-                                    break;
-                                }
-                            }
+                        if !line.is_empty()
+                            && !is_ignored(line.as_str())
+                            && sender.send(Some(line)).is_err()
+                        {
+                            break;
                         }
                     }
                     Err(e) => {

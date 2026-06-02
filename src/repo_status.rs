@@ -1,8 +1,8 @@
-use std::path::{Path, PathBuf};
-use std::time::SystemTime;
-use std::rc::Rc;
-use git2::Repository;
 use crate::config::{Config, WatchConfig};
+use git2::Repository;
+use std::path::{Path, PathBuf};
+use std::rc::Rc;
+use std::time::SystemTime;
 
 #[derive(Debug, Clone)]
 pub struct ChangedFile {
@@ -43,19 +43,21 @@ impl RepoStatus {
         match Repository::open(path) {
             Ok(repo) => {
                 let mut changed_files = Vec::new();
-                if let Ok(statuses) = repo.statuses(Some(git2::StatusOptions::new()
-                    .include_untracked(true)
-                    .include_ignored(false)
-                    .include_unmodified(false)))
-                {
+                if let Ok(statuses) = repo.statuses(Some(
+                    git2::StatusOptions::new()
+                        .include_untracked(true)
+                        .include_ignored(false)
+                        .include_unmodified(false),
+                )) {
                     for entry in statuses.iter() {
                         let status = entry.status();
-                        if status.is_wt_new() || 
-                           status.is_wt_modified() || 
-                           status.is_wt_deleted() ||
-                           status.is_index_new() ||
-                           status.is_index_modified() ||
-                           status.is_index_deleted() {
+                        if status.is_wt_new()
+                            || status.is_wt_modified()
+                            || status.is_wt_deleted()
+                            || status.is_index_new()
+                            || status.is_index_modified()
+                            || status.is_index_deleted()
+                        {
                             if let Some(p) = entry.path() {
                                 changed_files.push(ChangedFile {
                                     path: p.to_string(),
@@ -68,7 +70,9 @@ impl RepoStatus {
 
                 let (backup_count, latest_commit_id, latest_time) = config.count_backups(&repo);
                 let last_backup = if latest_time > 0 {
-                    Some(SystemTime::UNIX_EPOCH + std::time::Duration::from_secs(latest_time as u64))
+                    Some(
+                        SystemTime::UNIX_EPOCH + std::time::Duration::from_secs(latest_time as u64),
+                    )
                 } else {
                     None
                 };
@@ -85,19 +89,17 @@ impl RepoStatus {
                     watch_config,
                 }
             }
-            Err(e) => {
-                Self {
-                    path: path_buf,
-                    exists: true,
-                    is_git_repo: false,
-                    git_error: Some(e.to_string()),
-                    backup_count: 0,
-                    latest_commit_id: None,
-                    last_backup: None,
-                    changed_files: Vec::new(),
-                    watch_config,
-                }
-            }
+            Err(e) => Self {
+                path: path_buf,
+                exists: true,
+                is_git_repo: false,
+                git_error: Some(e.to_string()),
+                backup_count: 0,
+                latest_commit_id: None,
+                last_backup: None,
+                changed_files: Vec::new(),
+                watch_config,
+            },
         }
     }
 

@@ -147,7 +147,10 @@ mod tests {
             output["time"].as_str(),
             Some("2022-01-14T01:49:51.638031+00:00")
         );
-        assert_eq!(output["repo"].as_str(), Some("/Users/timkellogg/code/durable"));
+        assert_eq!(
+            output["repo"].as_str(),
+            Some("/Users/timkellogg/code/durable")
+        );
         assert_eq!(
             output["durable_branch"].as_str(),
             Some("durable/3e8e8c99b5434e726b13f56ba00d139bab57d5eb")

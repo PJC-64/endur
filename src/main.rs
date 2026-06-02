@@ -3,6 +3,7 @@ use std::io::{stdin, stdout, BufReader, BufWriter, Read, Write};
 use std::path::Path;
 use std::process;
 
+use chrono::TimeZone;
 use clap::builder::IntoResettable;
 use clap::{
     arg, crate_authors, crate_description, crate_name, crate_version, value_parser, Arg, Command,
@@ -17,7 +18,6 @@ use durable::snapshots;
 use tracing::info;
 use tracing_subscriber::prelude::__tracing_subscriber_SubscriberExt;
 use tracing_subscriber::util::SubscriberInitExt;
-use chrono::TimeZone;
 use tracing_subscriber::{EnvFilter, Registry};
 
 #[tokio::main]
@@ -200,7 +200,7 @@ async fn main() {
         }
         Some(("info", arg_matches)) => {
             let config = Config::load();
-            if arg_matches.get_flag("detail"){
+            if arg_matches.get_flag("detail") {
                 config.print_detailed_info();
             } else {
                 config.print_summary();
@@ -254,13 +254,14 @@ async fn main() {
             let max_depth = match arg_matches
                 .get_one::<String>("maxdepth")
                 .unwrap_or(&"255".to_string())
-                .parse::<u8>() {
-                    Ok(depth) => depth,
-                    Err(_) => {
-                        eprintln!("Max depth must be a number between 0 and 255");
-                        process::exit(1);
-                    }
-                };
+                .parse::<u8>()
+            {
+                Ok(depth) => depth,
+                Err(_) => {
+                    eprintln!("Max depth must be a number between 0 and 255");
+                    process::exit(1);
+                }
+            };
 
             let watch_config = WatchConfig {
                 include,
@@ -311,10 +312,14 @@ async fn main() {
                         println!("No snapshots found in repository: {}", dir.display());
                     } else {
                         println!("Durable Snapshots for repository: {}", dir.display());
-                        println!("{:<40} {:<25} {:<10}", "Commit Hash", "Date/Time", "Changes");
+                        println!(
+                            "{:<40} {:<25} {:<10}",
+                            "Commit Hash", "Date/Time", "Changes"
+                        );
                         println!("{}", "-".repeat(80));
                         for snap in snapshots {
-                            let date_time = chrono::Local.timestamp_opt(snap.timestamp, 0)
+                            let date_time = chrono::Local
+                                .timestamp_opt(snap.timestamp, 0)
                                 .single()
                                 .map(|dt| dt.format("%Y-%m-%d %H:%M:%S").to_string())
                                 .unwrap_or_else(|| "Unknown".to_string());
@@ -345,7 +350,8 @@ async fn main() {
                     }
                 }
             } else {
-                let dir = Path::new(arg_matches.get_one::<String>("directory").unwrap()).to_path_buf();
+                let dir =
+                    Path::new(arg_matches.get_one::<String>("directory").unwrap()).to_path_buf();
                 let hash = arg_matches.get_one::<String>("hash").unwrap().to_string();
                 let files = arg_matches
                     .get_many::<String>("files")
@@ -358,14 +364,20 @@ async fn main() {
                     if changes.is_empty() {
                         println!("No files needed to be restored or changed for commit {hash}");
                     } else {
-                        println!("Restored working directory and index of {} to snapshot {hash}:", dir.display());
+                        println!(
+                            "Restored working directory and index of {} to snapshot {hash}:",
+                            dir.display()
+                        );
                         for (status, path) in changes {
-                            println!("  {} {}", status, path);
+                            println!("  {status} {path}");
                         }
                     }
                 }
                 Err(e) => {
-                    println!("Failed to restore snapshot {hash} in {}: {e}", dir.display());
+                    println!(
+                        "Failed to restore snapshot {hash} in {}: {e}",
+                        dir.display()
+                    );
                     process::exit(1);
                 }
             }
@@ -384,9 +396,12 @@ async fn main() {
             if to_remove.is_empty() {
                 println!("No inaccessible repositories found in watch list.");
             } else {
-                println!("Found {} inaccessible repository/repositories:", to_remove.len());
+                println!(
+                    "Found {} inaccessible repository/repositories:",
+                    to_remove.len()
+                );
                 for repo in &to_remove {
-                    println!("  Removing: {}", repo);
+                    println!("  Removing: {repo}");
                     config.repos.remove(repo);
                 }
                 config.save();
@@ -396,26 +411,24 @@ async fn main() {
                 let _ = durable::poller::send_uds_command("reload").await;
             }
         }
-        Some(("service", arg_matches)) => {
-            match arg_matches.subcommand() {
-                Some(("install", _)) => {
-                    if let Err(e) = service::install() {
-                        eprintln!("Error installing service: {e}");
-                        process::exit(1);
-                    }
-                }
-                Some(("uninstall", _)) => {
-                    if let Err(e) = service::uninstall() {
-                        eprintln!("Error uninstalling service: {e}");
-                        process::exit(1);
-                    }
-                }
-                _ => {
-                    eprintln!("Invalid service command. Use 'install' or 'uninstall'.");
+        Some(("service", arg_matches)) => match arg_matches.subcommand() {
+            Some(("install", _)) => {
+                if let Err(e) = service::install() {
+                    eprintln!("Error installing service: {e}");
                     process::exit(1);
                 }
             }
-        }
+            Some(("uninstall", _)) => {
+                if let Err(e) = service::uninstall() {
+                    eprintln!("Error uninstalling service: {e}");
+                    process::exit(1);
+                }
+            }
+            _ => {
+                eprintln!("Invalid service command. Use 'install' or 'uninstall'.");
+                process::exit(1);
+            }
+        },
         _ => unreachable!(),
     }
 }

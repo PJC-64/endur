@@ -1,7 +1,7 @@
+use anyhow::{anyhow, Context, Result};
 use std::env;
 use std::fs::{self, create_dir_all};
 use std::process::Command;
-use anyhow::{anyhow, Context, Result};
 
 #[cfg(target_os = "macos")]
 fn get_uid() -> Result<String> {
@@ -10,11 +10,12 @@ fn get_uid() -> Result<String> {
         .output()
         .context("Failed to run 'id -u' command")?;
     if !output.status.success() {
-        return Err(anyhow!("'id -u' command failed with status: {:?}", output.status));
+        return Err(anyhow!(
+            "'id -u' command failed with status: {:?}",
+            output.status
+        ));
     }
-    let uid = String::from_utf8(output.stdout)?
-        .trim()
-        .to_string();
+    let uid = String::from_utf8(output.stdout)?.trim().to_string();
     Ok(uid)
 }
 
@@ -25,7 +26,10 @@ pub fn install() -> Result<()> {
     let launch_agents_dir = home.join("Library").join("LaunchAgents");
     let plist_path = launch_agents_dir.join("com.durable.daemon.plist");
 
-    println!("Creating startup service config at: {}", plist_path.display());
+    println!(
+        "Creating startup service config at: {}",
+        plist_path.display()
+    );
     create_dir_all(&launch_agents_dir)
         .context("Failed to create Library/LaunchAgents directory")?;
 
@@ -57,10 +61,14 @@ pub fn install() -> Result<()> {
 
     let uid = get_uid()?;
     println!("Registering service with launchctl...");
-    
+
     // Attempt bootstrap (modern macOS launchctl)
     let status = Command::new("launchctl")
-        .args(&["bootstrap", &format!("gui/{}", uid), plist_path.to_str().unwrap()])
+        .args([
+            "bootstrap",
+            &format!("gui/{uid}"),
+            plist_path.to_str().unwrap(),
+        ])
         .status();
 
     match status {
@@ -72,7 +80,7 @@ pub fn install() -> Result<()> {
             // Fallback to load
             println!("bootstrap failed or launchctl modern GUI not available. Falling back to 'launchctl load'...");
             let load_status = Command::new("launchctl")
-                .args(&["load", plist_path.to_str().unwrap()])
+                .args(["load", plist_path.to_str().unwrap()])
                 .status()
                 .context("Failed to execute launchctl load")?;
             if load_status.success() {
@@ -88,7 +96,10 @@ pub fn install() -> Result<()> {
 #[cfg(target_os = "macos")]
 pub fn uninstall() -> Result<()> {
     let home = dirs::home_dir().ok_or_else(|| anyhow!("Could not determine home directory"))?;
-    let plist_path = home.join("Library").join("LaunchAgents").join("com.durable.daemon.plist");
+    let plist_path = home
+        .join("Library")
+        .join("LaunchAgents")
+        .join("com.durable.daemon.plist");
 
     if !plist_path.exists() {
         println!("Service configuration file does not exist. Service is not installed.");
@@ -97,10 +108,14 @@ pub fn uninstall() -> Result<()> {
 
     let uid = get_uid()?;
     println!("Stopping service and unregistering from launchctl...");
-    
+
     // Attempt bootout
     let status = Command::new("launchctl")
-        .args(&["bootout", &format!("gui/{}", uid), plist_path.to_str().unwrap()])
+        .args([
+            "bootout",
+            &format!("gui/{uid}"),
+            plist_path.to_str().unwrap(),
+        ])
         .status();
 
     let stopped = match status {
@@ -108,7 +123,7 @@ pub fn uninstall() -> Result<()> {
         _ => {
             // Fallback to unload
             let unload_status = Command::new("launchctl")
-                .args(&["unload", plist_path.to_str().unwrap()])
+                .args(["unload", plist_path.to_str().unwrap()])
                 .status();
             match unload_status {
                 Ok(s) => s.success(),
@@ -136,9 +151,11 @@ pub fn install() -> Result<()> {
     let systemd_dir = home.join(".config").join("systemd").join("user");
     let service_path = systemd_dir.join("durable.service");
 
-    println!("Creating systemd service config at: {}", service_path.display());
-    create_dir_all(&systemd_dir)
-        .context("Failed to create systemd user directory")?;
+    println!(
+        "Creating systemd service config at: {}",
+        service_path.display()
+    );
+    create_dir_all(&systemd_dir).context("Failed to create systemd user directory")?;
 
     let service_content = format!(
         r#"[Unit]
@@ -192,7 +209,11 @@ WantedBy=default.target
 #[cfg(target_os = "linux")]
 pub fn uninstall() -> Result<()> {
     let home = dirs::home_dir().ok_or_else(|| anyhow!("Could not determine home directory"))?;
-    let service_path = home.join(".config").join("systemd").join("user").join("durable.service");
+    let service_path = home
+        .join(".config")
+        .join("systemd")
+        .join("user")
+        .join("durable.service");
 
     if !service_path.exists() {
         println!("Service configuration file does not exist. Service is not installed.");
@@ -223,10 +244,14 @@ pub fn uninstall() -> Result<()> {
 
 #[cfg(not(any(target_os = "macos", target_os = "linux")))]
 pub fn install() -> Result<()> {
-    Err(anyhow!("Automatic service installation is not supported on this platform."))
+    Err(anyhow!(
+        "Automatic service installation is not supported on this platform."
+    ))
 }
 
 #[cfg(not(any(target_os = "macos", target_os = "linux")))]
 pub fn uninstall() -> Result<()> {
-    Err(anyhow!("Automatic service uninstallation is not supported on this platform."))
+    Err(anyhow!(
+        "Automatic service uninstallation is not supported on this platform."
+    ))
 }

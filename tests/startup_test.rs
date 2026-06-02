@@ -14,7 +14,8 @@ fn start_serve() {
     assert_eq!(None, durable.get_runtime_lock());
 
     durable.start_async(&["serve"], true);
-    durable.primary
+    durable
+        .primary
         .as_ref()
         .map(|d| d.read_line(START_TIMEOUT).unwrap());
 
@@ -35,7 +36,8 @@ fn start_serve_with_null_pid_in_config() {
     assert_ne!(None, durable.get_runtime_lock());
 
     durable.start_async(&["serve"], true);
-    durable.primary
+    durable
+        .primary
         .as_ref()
         .map(|d| d.read_line(START_TIMEOUT).unwrap());
 
@@ -58,7 +60,8 @@ fn start_serve_with_other_pid_in_config() {
     assert_ne!(None, durable.get_runtime_lock());
 
     durable.start_async(&["serve"], true);
-    durable.primary
+    durable
+        .primary
         .as_ref()
         .map(|d| d.read_line(START_TIMEOUT).unwrap());
 
@@ -79,7 +82,8 @@ fn start_serve_with_invalid_json() {
     assert_eq!(None, durable.get_runtime_lock());
 
     durable.start_async(&["serve"], true);
-    durable.primary
+    durable
+        .primary
         .as_ref()
         .map(|d| d.read_line(START_TIMEOUT).unwrap());
 
@@ -94,7 +98,8 @@ fn double_lock_prevention() {
     let mut durable = util::durable::Durable::new();
     // Start primary daemon
     durable.start_async(&["serve"], true);
-    durable.primary
+    durable
+        .primary
         .as_ref()
         .map(|d| d.read_line(START_TIMEOUT).unwrap());
 
@@ -106,10 +111,13 @@ fn double_lock_prevention() {
 
     // The secondary daemon should exit immediately because the lock is held
     std::thread::sleep(std::time::Duration::from_millis(1000));
-    
+
     if let Some(ref mut secondary) = durable.secondary {
         let status = secondary.child.try_wait().unwrap();
-        assert!(status.is_some(), "Secondary daemon did not exit on double lock");
+        assert!(
+            status.is_some(),
+            "Secondary daemon did not exit on double lock"
+        );
         let exit_code = status.unwrap().code();
         assert_eq!(exit_code, Some(1));
     } else {
@@ -121,12 +129,15 @@ fn double_lock_prevention() {
 async fn test_uds_communication() {
     let mut durable = util::durable::Durable::new();
     durable.start_async(&["serve"], true);
-    
+
     // Wait for the daemon to start and create the socket
     std::thread::sleep(std::time::Duration::from_millis(1500));
 
     // Override the environment variable so our client finds the test cache directory
-    std::env::set_var("DURABLE_CACHE_HOME", durable.runtime_lock_path().parent().unwrap());
+    std::env::set_var(
+        "DURABLE_CACHE_HOME",
+        durable.runtime_lock_path().parent().unwrap(),
+    );
 
     // Try sending a status command
     let res = durable::poller::send_uds_command("status").await;

@@ -1,9 +1,9 @@
-use std::fs::{create_dir_all, File, OpenOptions};
-use std::io::{Result, Write, Seek, SeekFrom};
-use std::path::{Path, PathBuf};
-use std::{env, fs, io};
-use std::time::SystemTime;
 use fs2::FileExt;
+use std::fs::{create_dir_all, File, OpenOptions};
+use std::io::{Result, Seek, SeekFrom, Write};
+use std::path::{Path, PathBuf};
+use std::time::SystemTime;
+use std::{env, fs, io};
 
 use serde::{Deserialize, Serialize};
 
@@ -15,7 +15,10 @@ pub struct RuntimeLock {
 
 impl RuntimeLock {
     pub fn empty() -> Self {
-        Self { pid: None, start_time: None }
+        Self {
+            pid: None,
+            start_time: None,
+        }
     }
 
     pub fn default_path() -> PathBuf {
@@ -62,6 +65,7 @@ impl RuntimeLock {
             .read(true)
             .write(true)
             .create(true)
+            .truncate(false)
             .open(&path)?;
         file.try_lock_exclusive()?;
         Ok(file)
@@ -116,4 +120,3 @@ impl RuntimeLock {
         let _ = fs::write(path, json);
     }
 }
-

@@ -141,45 +141,44 @@ pub fn list_snapshots(path: &Path) -> Result<Vec<SnapshotInfo>, Error> {
     let mut snapshots = Vec::new();
 
     if let Ok(branches) = repo.branches(Some(BranchType::Local)) {
-        for branch_res in branches {
-            if let Ok((branch, _)) = branch_res {
-                if let Ok(Some(name_str)) = branch.name() {
-                    if name_str.starts_with("durable/") {
-                        if let Some(target) = branch.get().target() {
-                            if let Ok(mut revwalk) = repo.revwalk() {
-                                if revwalk.push(target).is_ok() {
-                                    for oid_res in revwalk {
-                                        if let Ok(oid) = oid_res {
-                                            if let Ok(commit) = repo.find_commit(oid) {
-                                                if commit.summary() == Some("durable auto-backup") {
-                                                    let parent_hash = if commit.parent_count() > 0 {
-                                                        commit.parent_id(0).map(|id| id.to_string()).unwrap_or_default()
-                                                    } else {
-                                                        "".to_string()
-                                                    };
+        for (branch, _) in branches.flatten() {
+            if let Ok(Some(name_str)) = branch.name() {
+                if name_str.starts_with("durable/") {
+                    if let Some(target) = branch.get().target() {
+                        if let Ok(mut revwalk) = repo.revwalk() {
+                            if revwalk.push(target).is_ok() {
+                                for oid in revwalk.flatten() {
+                                    if let Ok(commit) = repo.find_commit(oid) {
+                                        if commit.summary() == Some("durable auto-backup") {
+                                            let parent_hash = if commit.parent_count() > 0 {
+                                                commit
+                                                    .parent_id(0)
+                                                    .map(|id| id.to_string())
+                                                    .unwrap_or_default()
+                                            } else {
+                                                "".to_string()
+                                            };
 
-                                                    let mut files_changed = 0;
-                                                    if commit.parent_count() > 0 {
-                                                        if let Ok(parent) = commit.parent(0) {
-                                                            if let Ok(diff) = repo.diff_tree_to_tree(
-                                                                Some(&parent.tree()?),
-                                                                Some(&commit.tree()?),
-                                                                None,
-                                                            ) {
-                                                                files_changed = diff.deltas().len();
-                                                            }
-                                                        }
+                                            let mut files_changed = 0;
+                                            if commit.parent_count() > 0 {
+                                                if let Ok(parent) = commit.parent(0) {
+                                                    if let Ok(diff) = repo.diff_tree_to_tree(
+                                                        Some(&parent.tree()?),
+                                                        Some(&commit.tree()?),
+                                                        None,
+                                                    ) {
+                                                        files_changed = diff.deltas().len();
                                                     }
-
-                                                    snapshots.push(SnapshotInfo {
-                                                        commit_hash: oid.to_string(),
-                                                        base_hash: parent_hash,
-                                                        timestamp: commit.time().seconds(),
-                                                        message: commit.summary().unwrap_or("").to_string(),
-                                                        files_changed,
-                                                    });
                                                 }
                                             }
+
+                                            snapshots.push(SnapshotInfo {
+                                                commit_hash: oid.to_string(),
+                                                base_hash: parent_hash,
+                                                timestamp: commit.time().seconds(),
+                                                message: commit.summary().unwrap_or("").to_string(),
+                                                files_changed,
+                                            });
                                         }
                                     }
                                 }
@@ -209,11 +208,9 @@ pub fn restore(
     let mut changes = Vec::new();
     if let Ok(head_ref) = repo.head() {
         if let Ok(head_commit) = head_ref.peel_to_commit() {
-            if let Ok(diff) = repo.diff_tree_to_tree(
-                Some(&head_commit.tree()?),
-                Some(&commit.tree()?),
-                None,
-            ) {
+            if let Ok(diff) =
+                repo.diff_tree_to_tree(Some(&head_commit.tree()?), Some(&commit.tree()?), None)
+            {
                 for delta in diff.deltas() {
                     let status_char = match delta.status() {
                         git2::Delta::Added => 'A',
@@ -270,11 +267,7 @@ pub fn get_snapshot_files(path: &Path, commit_hash: &str) -> Result<Vec<(char, S
 
     if commit.parent_count() > 0 {
         let parent = commit.parent(0)?;
-        let diff = repo.diff_tree_to_tree(
-            Some(&parent.tree()?),
-            Some(&commit.tree()?),
-            None,
-        )?;
+        let diff = repo.diff_tree_to_tree(Some(&parent.tree()?), Some(&commit.tree()?), None)?;
         for delta in diff.deltas() {
             let status_char = match delta.status() {
                 git2::Delta::Added => 'A',

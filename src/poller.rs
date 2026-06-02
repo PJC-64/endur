@@ -63,7 +63,8 @@ pub async fn start() {
 
     let (shutdown_tx, mut shutdown_rx) = tokio::sync::broadcast::channel(1);
     let (reload_tx, mut reload_rx) = tokio::sync::mpsc::unbounded_channel::<()>();
-    let (event_tx, mut event_rx) = tokio::sync::mpsc::unbounded_channel::<(std::path::PathBuf, std::path::PathBuf)>();
+    let (event_tx, mut event_rx) =
+        tokio::sync::mpsc::unbounded_channel::<(std::path::PathBuf, std::path::PathBuf)>();
 
     let event_tx_clone = event_tx.clone();
     let mut watcher_manager = match crate::watcher::WatcherManager::new(move |repo, file| {
@@ -141,7 +142,10 @@ pub async fn start() {
 
 #[cfg(unix)]
 pub fn socket_path() -> std::path::PathBuf {
-    RuntimeLock::default_path().parent().unwrap().join("durable.sock")
+    RuntimeLock::default_path()
+        .parent()
+        .unwrap()
+        .join("durable.sock")
 }
 
 #[cfg(unix)]
@@ -162,9 +166,9 @@ pub async fn run_ipc_server(
     shutdown_tx: tokio::sync::broadcast::Sender<()>,
     reload_tx: tokio::sync::mpsc::UnboundedSender<()>,
 ) {
-    use tokio::net::UnixListener;
     use tokio::io::{AsyncReadExt, AsyncWriteExt};
-    
+    use tokio::net::UnixListener;
+
     let path = socket_path();
     if path.exists() {
         let _ = std::fs::remove_file(&path);
@@ -224,7 +228,9 @@ async fn handle_ipc_command(
 
     let req: IpcRequest = match serde_json::from_str(req_str.trim()) {
         Ok(r) => r,
-        Err(_) => return serde_json::json!({"status": "error", "message": "Invalid JSON"}).to_string(),
+        Err(_) => {
+            return serde_json::json!({"status": "error", "message": "Invalid JSON"}).to_string()
+        }
     };
 
     match req.command.as_str() {

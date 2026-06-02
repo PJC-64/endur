@@ -42,12 +42,6 @@ impl Operation {
     }
 }
 
-#[derive(Debug, Serialize, Deserialize)]
-struct Stats {
-    dir_stats: Histo,
-    loop_stats: Histo,
-}
-
 /// A serializable form of a hdrhistogram, mainly just for logging out
 /// in a way we want to read it
 #[derive(Debug, Serialize, Deserialize)]
