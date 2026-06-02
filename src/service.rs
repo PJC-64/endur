@@ -177,7 +177,7 @@ WantedBy=default.target
 
     println!("Reloading systemd manager configuration...");
     let status = Command::new("systemctl")
-        .args(&["--user", "daemon-reload"])
+        .args(["--user", "daemon-reload"])
         .status()
         .context("Failed to run 'systemctl --user daemon-reload'")?;
     if !status.success() {
@@ -186,7 +186,7 @@ WantedBy=default.target
 
     println!("Enabling durable service...");
     let status = Command::new("systemctl")
-        .args(&["--user", "enable", "durable"])
+        .args(["--user", "enable", "durable"])
         .status()
         .context("Failed to run 'systemctl --user enable'")?;
     if !status.success() {
@@ -195,7 +195,7 @@ WantedBy=default.target
 
     println!("Starting durable service...");
     let status = Command::new("systemctl")
-        .args(&["--user", "start", "durable"])
+        .args(["--user", "start", "durable"])
         .status()
         .context("Failed to run 'systemctl --user start'")?;
     if !status.success() {
@@ -222,12 +222,12 @@ pub fn uninstall() -> Result<()> {
 
     println!("Stopping durable service...");
     let _ = Command::new("systemctl")
-        .args(&["--user", "stop", "durable"])
+        .args(["--user", "stop", "durable"])
         .status();
 
     println!("Disabling durable service...");
     let _ = Command::new("systemctl")
-        .args(&["--user", "disable", "durable"])
+        .args(["--user", "disable", "durable"])
         .status();
 
     println!("Removing configuration file: {}", service_path.display());
@@ -235,7 +235,7 @@ pub fn uninstall() -> Result<()> {
 
     println!("Reloading systemd manager configuration...");
     let _ = Command::new("systemctl")
-        .args(&["--user", "daemon-reload"])
+        .args(["--user", "daemon-reload"])
         .status();
 
     println!("Durable startup service successfully uninstalled.");

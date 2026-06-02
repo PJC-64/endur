@@ -191,7 +191,7 @@ pub fn list_snapshots(path: &Path) -> Result<Vec<SnapshotInfo>, Error> {
     }
 
     // Sort by timestamp descending
-    snapshots.sort_by(|a, b| b.timestamp.cmp(&a.timestamp));
+    snapshots.sort_by_key(|s| std::cmp::Reverse(s.timestamp));
     Ok(snapshots)
 }
 
