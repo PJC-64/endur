@@ -48,14 +48,16 @@ window that you keep open.
 Let `durable` know which repositories to watch:
 
 ```bash
-$ cd some/git/repo
-$ durable watch
+$ durable watch some/git/repo
 ```
 
-Right now, you have to `cd` into each repo that you want to watch, one at a time.
+You can pass a relative or absolute path to the directory you want to watch. If no path is specified, it defaults to the current working directory.
 
-If you have thoughts on how to do this better, share them [here](https://github.com/tkellogg/durable/issues/3). Until that's sorted, you can
-run something like `find ~ -type d -name .git -prune | xargs -I= sh -c "cd =/..; durable watch"` to get started on your existing repos.
+To watch all git repositories under a specific folder (e.g. your development directory), you can run:
+
+```bash
+$ find ~/Development -type d -name .git -prune | xargs -I{} sh -c "durable watch {}/.."
+```
 
 Make some changes. No need to commit or even stage them. Use any Git tool to see the `durable` branches:
 
