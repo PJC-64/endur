@@ -168,3 +168,150 @@ This launches an interactive Terminal User Interface (TUI) with a multi-step sel
 *   **Safe checkout**: The files matching the snapshot are checked out into your working directory, overwriting current unstaged changes.
 *   **Staged changes**: Because the files match the snapshot, Git will show the differences between your `HEAD` and the restored files as **staged changes** (`git status` shows them as changes to be committed).
 *   **Detached HEAD is avoided**: The active HEAD pointer and branch (e.g., `main` or `feature-xyz`) are not changed. You remain on your current branch.
+
+---
+
+## Appendix: CLI Help Reference
+
+### 1. Main Executable Help (`durable --help`)
+```text
+Durable backs up your work automatically via Git commits.
+
+Usage: durable [COMMAND]
+
+Commands:
+  capture, -C, --capture  Run a single backup of an entire repository. This is the one single iteration of the `serve` control loop.
+  info, -I, --info        Prints summary information about the current configuration and repository status.
+  serve, -S, --serve      Starts the worker that listens for file changes. If another process is already running, this will do it's best to terminate the other process.
+  watch, -W, --watch      Add the current working directory as a repository to watch.
+  unwatch, -U, --unwatch  Remove the current working directory as a repository to watch.
+  kill, -K, --kill        Stop the running worker (should only be a single worker).
+  metrics, -M, --metrics  Convert logs into richer metrics about snapshots.
+  list-snapshots          List all local durable backup snapshots.
+  restore                 Restore files from a specific durable backup snapshot.
+  cleanup                 Remove any inaccessible or invalid repositories from the watch list.
+  service                 Manage durable background service
+  help                    Print this message or the help of the given subcommand(s)
+
+Options:
+  -v, --version  Print version information
+  -h, --help     Print help
+```
+
+### 2. Capture Command Help (`durable capture --help`)
+```text
+Run a single backup of an entire repository. This is the one single iteration of the `serve` control loop.
+
+Usage: durable {capture|--capture|-C} [directory]
+
+Arguments:
+  [directory]  The directory to watch. Defaults to current directory
+
+Options:
+  -h, --help  Print help
+```
+
+### 3. Info Command Help (`durable info --help`)
+```text
+Prints summary information about the current configuration and repository status.
+
+Usage: durable {info|--info|-I} [OPTIONS]
+
+Options:
+  -d, --detail  Show detailed output
+  -h, --help    Print help
+```
+
+### 4. Serve Command Help (`durable serve --help`)
+```text
+Starts the worker that listens for file changes. If another process is already running, this will do it's best to terminate the other process.
+
+Usage: durable {serve|--serve|-S} [OPTIONS]
+
+Options:
+      --logfile <FILE>  Sets custom logfile. Default is logging to stdout
+  -h, --help            Print help
+```
+
+### 5. Watch Command Help (`durable watch --help`)
+```text
+Add the current working directory as a repository to watch.
+
+Usage: durable {watch|--watch|-W} [OPTIONS] [directory]
+
+Arguments:
+  [directory]  The directory to watch. Defaults to current directory
+
+Options:
+  -i, --include [<include>...]  Overrides excludes by re-including specific directories relative to the watch directory.
+  -e, --exclude [<exclude>...]  Excludes specific directories relative to the watch directory
+  -d, --maxdepth [<maxdepth>]   Determines the depth to recurse into when scanning directories [default: 255]
+  -h, --help                    Print help
+```
+
+### 6. Unwatch Command Help (`durable unwatch --help`)
+```text
+Remove the current working directory as a repository to watch.
+
+Usage: durable {unwatch|--unwatch|-U} [directory]
+
+Arguments:
+  [directory]  The directory to watch. Defaults to current directory
+
+Options:
+  -h, --help  Print help
+```
+
+### 7. Kill Command Help (`durable kill --help`)
+```text
+Stop the running worker (should only be a single worker).
+
+Usage: durable {kill|--kill|-K}
+
+Options:
+  -h, --help  Print help
+```
+
+### 8. List Snapshots Command Help (`durable list-snapshots --help`)
+```text
+List all local durable backup snapshots.
+
+Usage: durable list-snapshots [directory]
+
+Arguments:
+  [directory]  The directory to watch. Defaults to current directory
+
+Options:
+  -h, --help  Print help
+```
+
+### 9. Restore Command Help (`durable restore --help`)
+```text
+Restore files from a specific durable backup snapshot.
+
+Usage: durable restore [OPTIONS] [hash] [directory]
+
+Arguments:
+  [hash]       The commit hash of the snapshot to restore
+  [directory]  The directory to watch. Defaults to current directory
+
+Options:
+  -i, --interactive      Interactive mode using TUI
+  -f, --files <FILE>...  Specific files or directories to restore
+  -h, --help             Print help
+```
+
+### 10. Service Command Help (`durable service --help`)
+```text
+Manage durable background service
+
+Usage: durable service [COMMAND]
+
+Commands:
+  install    Install durable as a system startup service (launchd on macOS, systemd on Linux)
+  uninstall  Uninstall durable startup service
+  help       Print this message or the help of the given subcommand(s)
+
+Options:
+  -h, --help  Print help
+```

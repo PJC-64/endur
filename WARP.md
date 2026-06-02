@@ -49,10 +49,10 @@ durable info --detail
 ### Development with Nix
 ```bash
 # Run development version
-nix run github:tkellogg/durable
+nix run github:PJC-64/durable
 
 # Enter development shell
-nix develop github:tkellogg/durable
+nix develop github:PJC-64/durable
 ```
 
 ## Architecture
