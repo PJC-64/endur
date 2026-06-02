@@ -60,8 +60,7 @@ pub async fn start() {
         error!("Failed to write runtime lock metadata: {e}");
     }
     info!(pid = std::process::id());
-
-    let (shutdown_tx, mut shutdown_rx) = tokio::sync::broadcast::channel(1);
+    let (shutdown_tx, mut shutdown_rx) = tokio::sync::broadcast::channel::<()>(1);
     let (reload_tx, mut reload_rx) = tokio::sync::mpsc::unbounded_channel::<()>();
     let (event_tx, mut event_rx) =
         tokio::sync::mpsc::unbounded_channel::<(std::path::PathBuf, std::path::PathBuf)>();

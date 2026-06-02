@@ -1,6 +1,12 @@
-use anyhow::{anyhow, Context, Result};
+use anyhow::{anyhow, Result};
+
+#[cfg(any(target_os = "macos", target_os = "linux"))]
+use anyhow::Context;
+#[cfg(any(target_os = "macos", target_os = "linux"))]
 use std::env;
+#[cfg(any(target_os = "macos", target_os = "linux"))]
 use std::fs::{self, create_dir_all};
+#[cfg(any(target_os = "macos", target_os = "linux"))]
 use std::process::Command;
 
 #[cfg(target_os = "macos")]
