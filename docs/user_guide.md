@@ -22,6 +22,12 @@ Ensure you have the Rust toolchain installed:
 curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
 ```
 
+### Install via Cargo (crates.io)
+You can install the published crate directly from crates.io:
+```bash
+cargo install endur
+```
+
 ### Build from Source
 From the `endur` directory:
 ```bash

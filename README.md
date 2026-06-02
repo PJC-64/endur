@@ -107,6 +107,13 @@ For more details on commands and recovery, see the [User Guide](docs/user_guide.
 
 ## Install
 
+### From crates.io (Recommended)
+
+You can install `endur` directly via Cargo:
+```bash
+cargo install endur
+```
+
 ### By Source
 
 1. Install Rust (e.g., `brew install rustup && brew install rust`)
