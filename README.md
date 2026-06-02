@@ -2,6 +2,9 @@
 
 [![Build][build badge]][build action]
 
+> [!NOTE]
+> **Durable** is an actively maintained fork of Tim Kellogg's original [dura](https://github.com/tkellogg/dura) project. It contains significant modernizations, performance improvements, and feature additions.
+
 Durable is a background process that watches your Git repositories and commits your uncommitted changes without impacting
 HEAD, the current branch, or the Git index (staged files). If you ever get into an "oh snap!" situation where you think
 you just lost days of work, checkout a `durable` branch and recover.
@@ -9,6 +12,21 @@ you just lost days of work, checkout a `durable` branch and recover.
 Without `durable`, you use Ctrl-Z in your editor to get back to a good state. That's so 2021. Computers crash and Ctrl-Z
 only works on files independently. Durable snapshots changes across the entire repository as-you-go, so you can revert to
 "4 hours ago" instead of "hit Ctrl-Z like 40 times or whatever". Finally, some sanity.
+
+## Key Enhancements & Differences from Original `dura`
+
+Compared to the upstream `dura` repository, **Durable** adds the following features and improvements:
+
+1. **Strict Advisory File Locking**: Replaced PID tracking files with OS-level advisory file locks (`fs2` crate) for single-instance daemon enforcement.
+2. **Unix Domain Sockets (UDS) IPC**: Replaced the native TCP loopback setup with a robust, asynchronous Unix Domain Socket communication layer.
+3. **Event-Driven & Debounced File Watching**: Replaced CPU-heavy active directory polling with native, event-driven file monitoring (`notify` crate) combined with a 500ms debounce cache.
+4. **Git-Aware Filtering**: Automatically respects `.gitignore` rules and ignores the `.git/` folder, reducing disk write and commit activity.
+5. **Discrete Path Restore**: Allows you to restore only specific files or folders from a backup snapshot (e.g. `durable restore <hash> --files path/to/file`) instead of checking out the entire repository tree.
+6. **Built-in CLI Recovery & Interactive TUI**:
+   * `durable list-snapshots`: Lists all snapshots with files changed and date/time.
+   * `durable restore -i`: Visual Terminal User Interface (TUI) powered by `ratatui` to select repositories and snapshots to restore.
+7. **System Startup Service Subcommands**: Exposes `durable service install` and `durable service uninstall` to register the daemon as a system service automatically (`launchd` on macOS, `systemd` on Linux).
+8. **Configurable Log Redirection**: The `durable serve` daemon runs completely silently, logging only to a configurable file path (defaults to `~/.cache/durable/durable.log`).
 
 ## Documentation
 
@@ -95,7 +113,7 @@ For more details on commands and recovery, see the [User Guide](docs/user_guide.
 1. Install Rust (e.g., `brew install rustup && brew install rust`)
 2. Clone this repository:
    ```bash
-   git clone https://github.com/tkellogg/durable.git
+   git clone https://github.com/PJC-64/durable.git
    ```
 3. Navigate to repository base directory (`cd durable`)
 4. Run:
@@ -121,7 +139,7 @@ $ durable service uninstall
 1. Download [rustup-init](https://www.rust-lang.org/tools/install)
 2. Clone this repository:
    ```bash
-   git clone https://github.com/tkellogg/durable.git
+   git clone https://github.com/PJC-64/durable.git
    ```
 3. Navigate to repository base directory (`cd durable`)
 4. Run `cargo install --path .` **Note:** If you receive a failure fetching the cargo dependencies try using the local [git client for cargo fetches](https://doc.rust-lang.org/cargo/reference/config.html#netgit-fetch-with-cli). `CARGO_NET_GIT_FETCH_WITH_CLI=true cargo install --path .`
@@ -150,14 +168,14 @@ own ready-to-use [Nix flake][nix flake].
 To build and run the latest development version of `durable` locally:
 
 ```bash
-nix run github:tkellogg/durable
+nix run github:PJC-64/durable
 ```
 
 To run a development environment with the required tools
 to develop:
 
 ```bash
-nix develop github:tkellogg/durable
+nix develop github:PJC-64/durable
 ```
 
 ## FAQ
@@ -174,7 +192,7 @@ Durable uses event-driven file monitoring (`notify` crate) to listen for filesys
 Brought to you by <a rel="nofollow me" href="https://hachyderm.io/@kellogh">Tim Kellogg</a>.
 
 
-[build badge]: https://github.com/tkellogg/durable/actions/workflows/build.yaml/badge.svg
-[build action]: https://github.com/tkellogg/durable/actions/workflows/build.yaml
+[build badge]: https://github.com/PJC-64/durable/actions/workflows/build.yaml/badge.svg
+[build action]: https://github.com/PJC-64/durable/actions/workflows/build.yaml
 [nix website]: https://nixos.org/
 [nix flake]: https://nixos.wiki/wiki/Flakes
