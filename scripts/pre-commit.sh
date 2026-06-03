@@ -1,27 +1,50 @@
-#!/bin/sh
-# This script is intended to be run before committing. It represents what's don in CI anyway, 
-# but should reduce the frustration of getting your commits rejected. This isn't identical to 
-# what happens in CI, it's a much faster version, it does everything in DEBUG.
+#!/bin/bash
+# Pre-commit checks to verify the code against the CI pipeline requirements.
+# Runs build, formatting, clippy, and tests.
 
-# Failed commands should cause the entire script to fail immediately
 set -e
 
-echo "################################"
-echo "### cargo test"
-echo "################################"
-cargo test
+# Default to debug mode for faster local iteration, but support --release to match CI exactly.
+PROFILE=""
+TEST_PROFILE=""
+BUILD_ARGS=""
 
-echo "################################"
-echo "### cargo clippy"
-echo "################################"
+while [[ "$#" -gt 0 ]]; do
+  case $1 in
+    --release)
+      PROFILE="--release"
+      TEST_PROFILE="--profile release"
+      BUILD_ARGS="--release"
+      shift
+      ;;
+    *)
+      echo "Unknown parameter: $1"
+      echo "Usage: $0 [--release]"
+      exit 1
+      ;;
+  esac
+done
+
+echo "========================================="
+echo "       Running Pre-Commit Checks         "
+echo "========================================="
+
+echo "--> Running cargo fmt --check"
+cargo fmt --check
+
+echo "--> Running cargo build ${BUILD_ARGS} --all-features"
+cargo build ${BUILD_ARGS} --all-features
+
+echo "--> Running cargo clippy"
 cargo clippy --all-targets --all-features -- -D warnings
 
-echo "################################"
-echo "### cargo fmt"
-echo "################################"
-# This doesn't fail, it just leaves files changed
-cargo fmt
-if [[ ! -z "$(git diff-index --name-only HEAD --)" ]]; then
-  echo "Error: Git changes present, maybe from 'cargo fmt', consider committing"
-  exit 1
+echo "--> Running cargo test ${TEST_PROFILE}"
+if [ -n "$TEST_PROFILE" ]; then
+  cargo test ${TEST_PROFILE}
+else
+  cargo test
 fi
+
+echo "========================================="
+echo "   All checks passed successfully!       "
+echo "========================================="
