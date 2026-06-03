@@ -1,0 +1,25 @@
+name: Sync Plugins
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - 'plugins/**'
+
+jobs:
+  sync-nvim:
+    name: Sync Neovim Plugin
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout main repo
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0 # Required to fetch full history for subtree operations
+
+      - name: Sync Neovim Plugin to Dedicated Repo
+        uses: nxtlvlsoftware/git-subtree-action@v1.1
+        with:
+          repo: 'PJC-64/endur-nvim'
+          path: 'plugins/endur-nvim'
+          deploy_key: ${{ secrets.ENDUR_NVIM_DEPLOY_KEY }}
