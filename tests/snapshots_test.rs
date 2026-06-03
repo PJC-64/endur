@@ -15,10 +15,7 @@ fn change_single_file() {
     let status = snapshots::capture(repo.dir.as_path()).unwrap().unwrap();
 
     assert_ne!(status.commit_hash, status.base_hash);
-    assert_eq!(
-        status.endur_branch,
-        format!("endur/{}", status.base_hash)
-    );
+    assert_eq!(status.endur_branch, format!("endur/{}", status.base_hash));
 }
 
 #[test]
@@ -58,10 +55,7 @@ fn during_merge_conflicts() {
 
     // Regular endur commit
     assert_ne!(status.commit_hash, status.base_hash);
-    assert_eq!(
-        status.endur_branch,
-        format!("endur/{}", status.base_hash)
-    );
+    assert_eq!(status.endur_branch, format!("endur/{}", status.base_hash));
 }
 
 #[test]

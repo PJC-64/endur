@@ -78,10 +78,7 @@ fn test_event_driven_backup() {
         "ENDUR_CACHE_HOME",
         endur.runtime_lock_path().parent().unwrap(),
     );
-    std::env::set_var(
-        "ENDUR_CONFIG_HOME",
-        endur.config_path().parent().unwrap(),
-    );
+    std::env::set_var("ENDUR_CONFIG_HOME", endur.config_path().parent().unwrap());
 
     repo.change_file("foo.txt");
 
@@ -131,10 +128,7 @@ fn test_cleanup_inaccessible_repos() {
     endur.run_in_dir(&["watch"], &invalid_dir);
 
     // Verify all three are watched
-    std::env::set_var(
-        "ENDUR_CONFIG_HOME",
-        endur.config_path().parent().unwrap(),
-    );
+    std::env::set_var("ENDUR_CONFIG_HOME", endur.config_path().parent().unwrap());
     let config = Config::load();
     assert_eq!(config.repos.len(), 3);
 
