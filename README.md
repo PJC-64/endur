@@ -7,7 +7,7 @@
 
 Endur is a background process that watches your Git repositories and commits your uncommitted changes without impacting
 HEAD, the current branch, or the Git index (staged files). If you ever get into an "oh snap!" situation where you think
-you just lost days of work, checkout an `endur` branch and recover.
+you just lost days of work, use Endur's built-in restore commands to safely and selectively recover your work.
 
 Without `endur`, you use Ctrl-Z in your editor to get back to a good state. That's so 2021. Computers crash and Ctrl-Z
 only works on files independently. Endur snapshots changes across the entire repository as-you-go, so you can revert to
@@ -102,6 +102,13 @@ Endur now provides built-in recovery subcommands:
         $ endur restore -i
         ```
     These options check out the snapshot files directly to your working directory and staging index, keeping you on your current branch.
+
+> [!TIP]
+> **Why use `endur restore` instead of native Git commands?**
+> While Endur snapshots are stored as standard Git commits on hidden branches (which you could technically access via `git checkout`), using Endur's built-in restore process is **highly recommended** because:
+> * **Keeps your branch state clean**: Native `git checkout` switches your entire repository to a detached HEAD or another branch, which disrupts your workspace. `endur restore` extracts snapshot files directly into your active working directory *without* changing your current branch or branch history.
+> * **Granular control**: You can restore specific files or folders (via `--files`) instead of the entire tree.
+> * **Interactive TUI**: Using `endur restore -i` allows you to visually inspect changes and selectively restore only the files you want using checkboxes.
 
 For more details on commands and recovery, see the [User Guide](docs/user_guide.md).
 
