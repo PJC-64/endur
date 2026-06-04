@@ -185,16 +185,17 @@ pub async fn send_uds_command(command: &str) -> Result<String, Box<dyn std::erro
     let path = socket_path();
     let command_clone = command.to_string();
 
-    tokio::task::spawn_blocking(move || {
+    let res = tokio::task::spawn_blocking(move || -> Result<String, std::io::Error> {
         let mut stream = UnixStream::connect(path)?;
         let req = serde_json::json!({ "command": command_clone }).to_string();
         stream.write_all(req.as_bytes())?;
         stream.shutdown(std::net::Shutdown::Write)?;
         let mut buf = Vec::new();
         stream.read_to_end(&mut buf)?;
-        Ok(String::from_utf8(buf)?)
+        String::from_utf8(buf).map_err(|e| std::io::Error::new(std::io::ErrorKind::InvalidData, e))
     })
-    .await?
+    .await??;
+    Ok(res)
 }
 
 #[cfg(unix)]
