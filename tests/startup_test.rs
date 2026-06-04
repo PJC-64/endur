@@ -153,3 +153,90 @@ async fn test_uds_communication() {
     // Clean up env var
     std::env::remove_var("ENDUR_CACHE_HOME");
 }
+
+#[cfg(unix)]
+#[test]
+fn test_graceful_shutdown_on_sigterm() {
+    let mut endur = util::endur::Endur::new();
+    assert_eq!(None, endur.pid(true));
+
+    endur.start_async(&["serve"], true);
+    endur
+        .primary
+        .as_ref()
+        .map(|d| d.read_line(START_TIMEOUT).unwrap());
+
+    let pid = endur.pid(true).expect("Daemon should be running");
+
+    // Check that lock is active and has our PID
+    let runtime_lock = endur.get_runtime_lock();
+    assert!(runtime_lock.is_some());
+    assert_eq!(runtime_lock.unwrap().pid, Some(pid));
+
+    // Send SIGTERM to the process
+    let status = std::process::Command::new("kill")
+        .args(["-s", "TERM", &pid.to_string()])
+        .status()
+        .expect("failed to execute kill");
+    assert!(status.success());
+
+    // Wait for the process to exit
+    let mut exited = false;
+    for _ in 0..50 {
+        if let Some(ref mut daemon) = endur.primary {
+            if let Ok(Some(exit_status)) = daemon.child.try_wait() {
+                // Should exit with status success (0)
+                assert_eq!(exit_status.code(), Some(0));
+                exited = true;
+                break;
+            }
+        }
+        std::thread::sleep(std::time::Duration::from_millis(100));
+    }
+    assert!(exited, "Daemon did not exit in time after SIGTERM");
+
+    // Check that the lock file has been updated to clear the PID
+    let runtime_lock = endur.get_runtime_lock();
+    assert!(runtime_lock.is_none() || runtime_lock.unwrap().pid.is_none());
+}
+
+#[cfg(unix)]
+#[test]
+fn test_graceful_shutdown_on_sigint() {
+    let mut endur = util::endur::Endur::new();
+    assert_eq!(None, endur.pid(true));
+
+    endur.start_async(&["serve"], true);
+    endur
+        .primary
+        .as_ref()
+        .map(|d| d.read_line(START_TIMEOUT).unwrap());
+
+    let pid = endur.pid(true).expect("Daemon should be running");
+
+    // Send SIGINT to the process
+    let status = std::process::Command::new("kill")
+        .args(["-s", "INT", &pid.to_string()])
+        .status()
+        .expect("failed to execute kill");
+    assert!(status.success());
+
+    // Wait for the process to exit
+    let mut exited = false;
+    for _ in 0..50 {
+        if let Some(ref mut daemon) = endur.primary {
+            if let Ok(Some(exit_status)) = daemon.child.try_wait() {
+                // Should exit with status success (0)
+                assert_eq!(exit_status.code(), Some(0));
+                exited = true;
+                break;
+            }
+        }
+        std::thread::sleep(std::time::Duration::from_millis(100));
+    }
+    assert!(exited, "Daemon did not exit in time after SIGINT");
+
+    // Check that the lock file has been updated to clear the PID
+    let runtime_lock = endur.get_runtime_lock();
+    assert!(runtime_lock.is_none() || runtime_lock.unwrap().pid.is_none());
+}

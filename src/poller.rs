@@ -99,8 +99,16 @@ pub async fn start() {
         process_directory(repo);
     }
 
+    let signal_fut = wait_for_signal();
+    tokio::pin!(signal_fut);
+
     loop {
         tokio::select! {
+            _ = &mut signal_fut => {
+                info!("Shutdown signal received. Starting graceful shutdown...");
+                let _ = shutdown_tx.send(());
+                break;
+            }
             Some(_) = reload_rx.recv() => {
                 info!("Reloading configuration...");
                 let config = Config::load();
@@ -139,6 +147,13 @@ pub async fn start() {
                 }
             }
         }
+    }
+
+    // Graceful cleanup of runtime lock metadata
+    let mut runtime_lock = RuntimeLock::load();
+    runtime_lock.pid = None;
+    if let Err(e) = runtime_lock.write_metadata() {
+        error!("Failed to clear runtime lock metadata: {e}");
     }
 }
 
@@ -260,4 +275,50 @@ pub fn socket_path() -> std::path::PathBuf {
 #[cfg(all(not(unix), not(windows)))]
 pub async fn send_uds_command(_command: &str) -> Result<String, Box<dyn std::error::Error>> {
     Err("UDS IPC is not supported on this platform".into())
+}
+
+#[cfg(unix)]
+async fn wait_for_signal() {
+    use tokio::signal::unix::{signal, SignalKind};
+
+    let mut sigint = signal(SignalKind::interrupt()).expect("failed to register SIGINT handler");
+    let mut sigterm = signal(SignalKind::terminate()).expect("failed to register SIGTERM handler");
+    let mut sighup = signal(SignalKind::hangup()).expect("failed to register SIGHUP handler");
+
+    tokio::select! {
+        _ = sigint.recv() => {
+            info!("Received SIGINT signal");
+        }
+        _ = sigterm.recv() => {
+            info!("Received SIGTERM signal");
+        }
+        _ = sighup.recv() => {
+            info!("Received SIGHUP signal");
+        }
+    }
+}
+
+#[cfg(windows)]
+async fn wait_for_signal() {
+    use tokio::signal::windows::{ctrl_break, ctrl_c};
+
+    let mut sigctrl_c = ctrl_c().expect("failed to register Ctrl+C handler");
+    let mut sigctrl_break = ctrl_break().expect("failed to register Ctrl+Break handler");
+
+    tokio::select! {
+        _ = sigctrl_c.recv() => {
+            info!("Received Ctrl+C event");
+        }
+        _ = sigctrl_break.recv() => {
+            info!("Received Ctrl+Break event");
+        }
+    }
+}
+
+#[cfg(all(not(unix), not(windows)))]
+async fn wait_for_signal() {
+    tokio::signal::ctrl_c()
+        .await
+        .expect("failed to listen for ctrl_c");
+    info!("Received Ctrl+C event (fallback)");
 }
