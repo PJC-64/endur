@@ -178,8 +178,10 @@ function M.check_and_start_daemon()
     end,
     on_exit = function(_, exit_code)
       if exit_code ~= 0 then
-        local err_msg = table.concat(stdout, "\n")
-        vim.notify("endur: info command failed with exit status " .. exit_code .. ": " .. err_msg, vim.log.levels.ERROR)
+        if exit_code ~= 143 then
+          local err_msg = table.concat(stdout, "\n")
+          vim.notify("endur: info command failed with exit status " .. exit_code .. ": " .. err_msg, vim.log.levels.ERROR)
+        end
         return
       end
 
@@ -192,22 +194,21 @@ function M.check_and_start_daemon()
       end
 
       if not is_running then
-        local service_cmd = { endur_path, "service", "install" }
-        local service_job = vim.fn.jobstart(service_cmd, {
-          on_exit = function(_, service_exit)
-            if service_exit ~= 0 then
-              vim.notify("endur: failed to register and start background service (exit code: " .. service_exit .. ")", vim.log.levels.ERROR)
-            else
-              vim.notify("endur: background service registered and started successfully.", vim.log.levels.INFO)
+        local serve_cmd = { endur_path, "serve" }
+        local serve_job = vim.fn.jobstart(serve_cmd, {
+          detach = true,
+          on_exit = function(_, serve_exit)
+            if serve_exit ~= 0 and serve_exit ~= 143 then
+              vim.notify("endur: failed to start background daemon (exit code: " .. serve_exit .. ")", vim.log.levels.ERROR)
             end
           end
         })
-        if service_job <= 0 then
-          vim.notify("endur: failed to spawn service install command.", vim.log.levels.ERROR)
+        if serve_job <= 0 then
+          vim.notify("endur: failed to spawn serve command.", vim.log.levels.ERROR)
         else
           vim.defer_fn(function()
             M.update_status()
-          end, 500)
+          end, 1000)
         end
       else
         -- Extract status cache from info output
