@@ -125,7 +125,7 @@ fn double_lock_prevention() {
     }
 }
 
-#[cfg(unix)]
+#[cfg(any(unix, windows))]
 #[tokio::test]
 async fn test_uds_communication() {
     let mut endur = util::endur::Endur::new();

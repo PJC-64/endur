@@ -85,10 +85,10 @@ pub async fn start() {
         currently_watched.insert(repo);
     }
 
-    #[cfg(unix)]
+    #[cfg(any(unix, windows))]
     tokio::spawn(run_ipc_server(shutdown_tx.clone(), reload_tx.clone()));
 
-    #[cfg(not(unix))]
+    #[cfg(all(not(unix), not(windows)))]
     let _ = (&shutdown_tx, &reload_tx);
 
     let mut pending_captures = std::collections::HashMap::<std::path::PathBuf, Instant>::new();
@@ -142,7 +142,7 @@ pub async fn start() {
     }
 }
 
-#[cfg(unix)]
+#[cfg(any(unix, windows))]
 pub fn socket_path() -> std::path::PathBuf {
     RuntimeLock::default_path()
         .parent()
@@ -150,7 +150,7 @@ pub fn socket_path() -> std::path::PathBuf {
         .join("endur.sock")
 }
 
-#[cfg(unix)]
+#[cfg(any(unix, windows))]
 pub async fn send_uds_command(command: &str) -> Result<String, Box<dyn std::error::Error>> {
     use tokio::io::{AsyncReadExt, AsyncWriteExt};
     let path = socket_path();
@@ -163,7 +163,7 @@ pub async fn send_uds_command(command: &str) -> Result<String, Box<dyn std::erro
     Ok(String::from_utf8(buf)?)
 }
 
-#[cfg(unix)]
+#[cfg(any(unix, windows))]
 pub async fn run_ipc_server(
     shutdown_tx: tokio::sync::broadcast::Sender<()>,
     reload_tx: tokio::sync::mpsc::UnboundedSender<()>,
@@ -217,7 +217,7 @@ pub async fn run_ipc_server(
     let _ = std::fs::remove_file(&path);
 }
 
-#[cfg(unix)]
+#[cfg(any(unix, windows))]
 async fn handle_ipc_command(
     req_str: &str,
     shutdown_tx: &tokio::sync::broadcast::Sender<()>,
@@ -252,12 +252,12 @@ async fn handle_ipc_command(
     }
 }
 
-#[cfg(not(unix))]
+#[cfg(all(not(unix), not(windows)))]
 pub fn socket_path() -> std::path::PathBuf {
     RuntimeLock::default_path()
 }
 
-#[cfg(not(unix))]
+#[cfg(all(not(unix), not(windows)))]
 pub async fn send_uds_command(_command: &str) -> Result<String, Box<dyn std::error::Error>> {
     Err("UDS IPC is not supported on this platform".into())
 }
