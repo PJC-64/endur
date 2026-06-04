@@ -277,8 +277,9 @@ pub async fn run_ipc_server(
     let shutdown_tx_clone = shutdown_tx.clone();
     let reload_tx_clone = reload_tx.clone();
 
+    let rt = tokio::runtime::Handle::current();
+
     std::thread::spawn(move || {
-        let rt = tokio::runtime::Handle::current();
         let mut shutdown_rx = shutdown_tx_clone.subscribe();
 
         loop {
