@@ -42,7 +42,9 @@ graph TD
 *   **Auto-Cleanup**: The lock is automatically released by the operating system when the daemon process terminates.
 
 ### 3. Client-Server IPC ([src/poller.rs](file:///Users/pjc/Development/endur/src/poller.rs))
-*   **Unix Domain Sockets**: The daemon binds to `~/.cache/endur/endur.sock` using `tokio::net::UnixListener`.
+*   **Unix Domain Sockets**: The daemon binds to local sockets using `tokio::net::UnixListener` on both Unix and Windows 10/11 (where UDS is natively supported):
+    *   *macOS/Linux*: `~/.cache/endur/endur.sock`
+    *   *Windows*: `%AppData%\Local\endur\endur.sock`
 *   **JSON-RPC Protocol**: Communication uses simple JSON payloads:
     *   `reload`: Reloads configuration when watched repositories change.
     *   `kill`: Triggers a graceful shutdown of the daemon.
@@ -56,10 +58,12 @@ graph TD
     *   Loads `.gitignore` files using `ignore::gitignore::Gitignore` to match change events against gitignore rules and discard ignored files.
 
 ### 5. Daemon Control Loop ([src/poller.rs](file:///Users/pjc/Development/endur/src/poller.rs))
-*   **Event Await & Debounce**: The daemon loop listens to three event sources using `tokio::select!`:
+*   **Event Await & Debounce**: The daemon loop listens to four event sources using `tokio::select!`:
+    *   *OS Signal Handler Channel*: Listens to target-specific shutdown signals pinned to the stack (`wait_for_signal()`). On Unix, handles `SIGINT`, `SIGTERM`, and `SIGHUP`. On Windows, handles `Ctrl+C` and `Ctrl+Break` events.
     *   *IPC Command Channel*: Process socket operations.
     *   *File Watcher Channel*: Pushes modified files. Captured file changes are cached in a hash map with a 500ms delay.
     *   *Timer Channel*: Triggers a capture operation for repositories that have modifications older than 500ms.
+*   **Graceful Exit Actions**: When a shutdown signal is received, the loop sends a broadcast termination signal to UDS socket handlers, clears the `RuntimeLock` PID metadata value back to `None`, and exits cleanly.
 *   **Optimization**: Debouncing prevents multiple rapid writes (e.g., compilation artifacts or quick editor saves) from creating dozens of intermediate commits.
 
 ### 6. Isolated Snapshot Capture ([src/snapshots.rs](file:///Users/pjc/Development/endur/src/snapshots.rs))
@@ -97,7 +101,7 @@ cargo test
 ```
 
 ### Key Integration Tests
-*   [tests/startup_test.rs](file:///Users/pjc/Development/endur/tests/startup_test.rs): Tests UDS communication, invalid lock files, and double-lock prevention.
+*   [tests/startup_test.rs](file:///Users/pjc/Development/endur/tests/startup_test.rs): Tests UDS communication (now verified on both Unix and Windows), OS signal graceful shutdown, invalid lock files, and double-lock prevention.
 *   [tests/watch_test.rs](file:///Users/pjc/Development/endur/tests/watch_test.rs): Tests watcher registration and event-driven backup snapshots.
 *   [tests/snapshots_test.rs](file:///Users/pjc/Development/endur/tests/snapshots_test.rs): Tests Git index isolation, git ignore support, listing snapshots, and restoring snapshots.
 *   [tests/poll_guard_test.rs](file:///Users/pjc/Development/endur/tests/poll_guard_test.rs): Tests poller lock mechanics and state changes.
