@@ -181,7 +181,7 @@ pub async fn send_uds_command(command: &str) -> Result<String, Box<dyn std::erro
 #[cfg(windows)]
 pub async fn send_uds_command(command: &str) -> Result<String, Box<dyn std::error::Error>> {
     use std::io::{Read, Write};
-    use std::os::windows::net::UnixStream;
+    use uds_windows::UnixStream;
     let path = socket_path();
     let command_clone = command.to_string();
 
@@ -257,7 +257,7 @@ pub async fn run_ipc_server(
     reload_tx: tokio::sync::mpsc::UnboundedSender<()>,
 ) {
     use std::io::{Read, Write};
-    use std::os::windows::net::UnixListener;
+    use uds_windows::UnixListener;
 
     let path = socket_path();
     if path.exists() {
