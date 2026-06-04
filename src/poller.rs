@@ -165,7 +165,7 @@ pub fn socket_path() -> std::path::PathBuf {
         .join("endur.sock")
 }
 
-#[cfg(any(unix, windows))]
+#[cfg(unix)]
 pub async fn send_uds_command(command: &str) -> Result<String, Box<dyn std::error::Error>> {
     use tokio::io::{AsyncReadExt, AsyncWriteExt};
     let path = socket_path();
@@ -178,7 +178,26 @@ pub async fn send_uds_command(command: &str) -> Result<String, Box<dyn std::erro
     Ok(String::from_utf8(buf)?)
 }
 
-#[cfg(any(unix, windows))]
+#[cfg(windows)]
+pub async fn send_uds_command(command: &str) -> Result<String, Box<dyn std::error::Error>> {
+    use std::io::{Read, Write};
+    use std::os::windows::net::UnixStream;
+    let path = socket_path();
+    let command_clone = command.to_string();
+
+    tokio::task::spawn_blocking(move || {
+        let mut stream = UnixStream::connect(path)?;
+        let req = serde_json::json!({ "command": command_clone }).to_string();
+        stream.write_all(req.as_bytes())?;
+        stream.shutdown(std::net::Shutdown::Write)?;
+        let mut buf = Vec::new();
+        stream.read_to_end(&mut buf)?;
+        Ok(String::from_utf8(buf)?)
+    })
+    .await?
+}
+
+#[cfg(unix)]
 pub async fn run_ipc_server(
     shutdown_tx: tokio::sync::broadcast::Sender<()>,
     reload_tx: tokio::sync::mpsc::UnboundedSender<()>,
@@ -230,6 +249,74 @@ pub async fn run_ipc_server(
         }
     }
     let _ = std::fs::remove_file(&path);
+}
+
+#[cfg(windows)]
+pub async fn run_ipc_server(
+    shutdown_tx: tokio::sync::broadcast::Sender<()>,
+    reload_tx: tokio::sync::mpsc::UnboundedSender<()>,
+) {
+    use std::io::{Read, Write};
+    use std::os::windows::net::UnixListener;
+
+    let path = socket_path();
+    if path.exists() {
+        let _ = std::fs::remove_file(&path);
+    }
+
+    let listener = match UnixListener::bind(&path) {
+        Ok(l) => l,
+        Err(e) => {
+            error!("Failed to bind to Windows UDS socket: {e}");
+            return;
+        }
+    };
+
+    let _ = listener.set_nonblocking(true);
+    let shutdown_tx_clone = shutdown_tx.clone();
+    let reload_tx_clone = reload_tx.clone();
+
+    std::thread::spawn(move || {
+        let rt = tokio::runtime::Handle::current();
+        let mut shutdown_rx = shutdown_tx_clone.subscribe();
+
+        loop {
+            if shutdown_rx.try_recv().is_ok() {
+                break;
+            }
+
+            match listener.accept() {
+                Ok((mut stream, _)) => {
+                    let shutdown_tx_task = shutdown_tx_clone.clone();
+                    let reload_tx_task = reload_tx_clone.clone();
+                    let rt_task = rt.clone();
+
+                    std::thread::spawn(move || {
+                        let _ = stream.set_nonblocking(false);
+                        let mut buf = [0; 1024];
+                        if let Ok(size) = stream.read(&mut buf) {
+                            if size > 0 {
+                                let req_str = String::from_utf8_lossy(&buf[..size]);
+                                let res = rt_task.block_on(async {
+                                    handle_ipc_command(&req_str, &shutdown_tx_task, &reload_tx_task)
+                                        .await
+                                });
+                                let _ = stream.write_all(res.as_bytes());
+                            }
+                        }
+                    });
+                }
+                Err(ref e) if e.kind() == std::io::ErrorKind::WouldBlock => {
+                    std::thread::sleep(std::time::Duration::from_millis(100));
+                }
+                Err(_) => {
+                    break;
+                }
+            }
+        }
+
+        let _ = std::fs::remove_file(&path);
+    });
 }
 
 #[cfg(any(unix, windows))]
