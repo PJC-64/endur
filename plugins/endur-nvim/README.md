@@ -58,3 +58,4 @@ require("lualine").setup({
 })
 ```
 
+<!-- sync-trigger -->
