@@ -42,18 +42,63 @@ local function show_picker(opts)
 
   -- Parse snapshots (skip headers)
   local items = {}
+  local hashes = {}
+  local short_hashes = {}
   for i = 3, #output do
     local line = output[i]
     if line ~= "" then
       local hash = trim(line:sub(1, 40))
       local datetime = trim(line:sub(42, 66))
       local changes = trim(line:sub(68))
-      table.insert(items, {
+      local item = {
         hash = hash,
         datetime = datetime,
         changes = changes,
         display = string.format("%s │ %s │ %s", hash:sub(1, 8), datetime, changes)
-      })
+      }
+      table.insert(items, item)
+      table.insert(hashes, hash)
+      short_hashes[hash:sub(1, 7)] = hash
+    end
+  end
+
+  -- Fetch changed files for all hashes in a single git show process
+  if #hashes > 0 then
+    local show_cmd = { "git", "show", "--name-only", "--oneline" }
+    vim.list_extend(show_cmd, hashes)
+    local show_out = vim.fn.systemlist(show_cmd)
+    if vim.v.shell_error == 0 then
+      local current_hash = nil
+      local hash_files = {}
+      for _, line in ipairs(show_out) do
+        if line ~= "" then
+          local matched_hash = line:match("^(%x+)%s+")
+          if matched_hash and short_hashes[matched_hash] then
+            current_hash = matched_hash
+            hash_files[current_hash] = {}
+          elseif current_hash then
+            local filename = trim(line)
+            if filename ~= "" then
+              table.insert(hash_files[current_hash], filename)
+            end
+          end
+        end
+      end
+
+      -- Update displays with the actual changed files
+      for _, item in ipairs(items) do
+        local sh = item.hash:sub(1, 7)
+        local files = hash_files[sh] or {}
+        local files_str
+        if #files > 3 then
+          files_str = string.format("%s, %s, and %d more", files[1], files[2], #files - 2)
+        elseif #files > 0 then
+          files_str = table.concat(files, ", ")
+        else
+          files_str = item.changes
+        end
+        item.display = string.format("%s │ %s │ %s", item.hash:sub(1, 8), item.datetime, files_str)
+      end
     end
   end
 
@@ -74,7 +119,7 @@ local function show_picker(opts)
       title = "Snapshot Diff",
       define_preview = function(self, entry, status)
         local hash = entry.value.hash
-        local cmd = { "git", "diff", hash .. "^!" }
+        local cmd = { "git", "show", "--stat", "-p", hash }
         
         vim.fn.jobstart(cmd, {
           stdout_buffered = true,
