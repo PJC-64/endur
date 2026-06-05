@@ -2,6 +2,10 @@
 
 A Neovim plugin for the [endur](https://github.com/PJC-64/endur) Git auto-backup tool.
 
+## NOTE - UNDER DEVELOPMENT
+
+This plugin is currently under development and should only be used with caution.  Please submit any bugs.
+
 ## Features
 - **Auto-Watch**: Automatically registers git repositories with `endur watch` on buffer write events.
 - **Commands**: Manual commands to watch and manage files within Neovim.
