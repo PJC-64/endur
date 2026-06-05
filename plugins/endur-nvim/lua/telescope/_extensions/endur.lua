@@ -72,19 +72,16 @@ local function show_picker(opts)
     sorter = conf.generic_sorter(opts),
     previewer = previewers.new_buffer_previewer({
       title = "Snapshot Diff",
-      define_preview_fn = function(self, entry, status)
+      define_preview = function(self, entry, status)
         local hash = entry.value.hash
-        local cmd = { "git", "diff", hash .. "^!", "--color=always" }
+        local cmd = { "git", "diff", hash .. "^!" }
         
         vim.fn.jobstart(cmd, {
           stdout_buffered = true,
           on_stdout = function(_, data)
             if data then
               vim.api.nvim_buf_set_lines(self.state.bufnr, 0, -1, false, data)
-              -- If a terminal buffer is open, output colors to it
-              if self.state.termopen then
-                vim.api.nvim_chan_send(self.state.termopen, table.concat(data, "\n") .. "\n")
-              end
+              vim.api.nvim_set_option_value("filetype", "diff", { buf = self.state.bufnr })
             end
           end,
         })
