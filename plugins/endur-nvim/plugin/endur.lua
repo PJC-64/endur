@@ -15,3 +15,8 @@ end, {
 vim.api.nvim_create_user_command("EndurSnapshots", function()
   require("endur").snapshots()
 end, {})
+
+vim.api.nvim_create_user_command("EndurStatus", function()
+  require("endur").print_status()
+end, {})
+

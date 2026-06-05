@@ -348,8 +348,25 @@ function M.statusline_raw()
   if backups then
     text = text .. " (" .. backups .. ")"
   end
-
   return string.format("%s Endur %s", icon, text)
+end
+
+-- Prints the current repository status in the command line area
+function M.print_status()
+  local status_info = M.get_current_repo_status()
+  if not status_info then
+    vim.notify("endur: current file is not in a watched Git repository", vim.log.levels.WARN)
+    return
+  end
+
+  local status_text = status_info.status
+  if status_info.status == "OK" then
+    status_text = "Clean"
+  elseif status_info.status == "M" then
+    status_text = "Modified"
+  end
+
+  vim.notify(string.format("endur: %s (%s)", status_text, status_info.details), vim.log.levels.INFO)
 end
 
 return M
