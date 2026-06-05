@@ -15,6 +15,7 @@ debug/
 !/CONTRIBUTING.md
 !/WARP.md
 !/review.md
+!plugins/**/*.md
 
 # debugging information from rustc on MSVC Windows
 *.pdb

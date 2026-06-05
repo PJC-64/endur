@@ -327,4 +327,29 @@ function M.winbar()
   return M.statusline()
 end
 
+-- A raw statusline component string without highlight codes (useful for lualine, etc.)
+function M.statusline_raw()
+  local status_info = M.get_current_repo_status()
+  if not status_info then return "" end
+
+  local icon, text
+  if status_info.status == "OK" then
+    icon = "󰄬"
+    text = "Clean"
+  elseif status_info.status == "M" then
+    icon = "󰏬"
+    text = "Modified"
+  else
+    icon = "󰁯"
+    text = status_info.status
+  end
+
+  local backups = status_info.details:match("(%d+) backups")
+  if backups then
+    text = text .. " (" .. backups .. ")"
+  end
+
+  return string.format("%s Endur %s", icon, text)
+end
+
 return M
