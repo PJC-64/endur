@@ -18,7 +18,7 @@ jobs:
           fetch-depth: 0 # Required to fetch full history for subtree operations
 
       - name: Sync Neovim Plugin to Dedicated Repo
-        uses: nxtlvlsoftware/git-subtree-action@v1.1
+        uses: nxtlvlsoftware/git-subtree-action@1.1
         with:
           repo: 'PJC-64/endur-nvim'
           path: 'plugins/endur-nvim'
