@@ -994,16 +994,18 @@ pub async fn run_control_center() -> Result<(), Box<dyn std::error::Error>> {
                         use std::io::Seek;
                         if file.seek(std::io::SeekFrom::Start(file_offset)).is_ok() {
                             let mut buffer = String::new();
-                            if file.read_to_string(&mut buffer).is_ok() {
-                                for line in buffer.lines() {
-                                    if !line.is_empty() {
-                                        let _ = log_tx.send(line.to_string()).await;
+                            if let Ok(bytes_read) = file.read_to_string(&mut buffer) {
+                                if bytes_read > 0 {
+                                    file_offset += bytes_read as u64;
+                                    for line in buffer.lines() {
+                                        if !line.is_empty() {
+                                            let _ = log_tx.send(line.to_string()).await;
+                                        }
                                     }
                                 }
                             }
                         }
                     }
-                    file_offset = new_len;
                 } else if new_len < file_offset {
                     file_offset = 0;
                 }
