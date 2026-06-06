@@ -1326,7 +1326,7 @@ fn draw_control_center(f: &mut ratatui::Frame, state: &ControlCenterState) {
             Constraint::Length(3), // Header
             Constraint::Length(1), // Tabs
             Constraint::Min(10),   // Active Pane
-            Constraint::Length(6), // Footer (logs + messages + help)
+            Constraint::Length(9), // Footer (logs + messages + help)
         ])
         .split(f.area());
 
@@ -1598,7 +1598,7 @@ fn draw_control_center(f: &mut ratatui::Frame, state: &ControlCenterState) {
     let footer_chunks = Layout::default()
         .direction(Direction::Vertical)
         .constraints([
-            Constraint::Length(3), // Live logs stream
+            Constraint::Length(6), // Live logs stream
             Constraint::Length(1), // Actions message
             Constraint::Length(2), // Help shortcuts
         ])
@@ -1606,8 +1606,8 @@ fn draw_control_center(f: &mut ratatui::Frame, state: &ControlCenterState) {
 
     // Live logs stream
     let live_logs_count = state.logs.len();
-    let live_logs_text = if live_logs_count > 3 {
-        state.logs[live_logs_count - 3..].join("\n")
+    let live_logs_text = if live_logs_count > 4 {
+        state.logs[live_logs_count - 4..].join("\n")
     } else {
         state.logs.join("\n")
     };
