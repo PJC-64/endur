@@ -1581,7 +1581,8 @@ fn draw_control_center(f: &mut ratatui::Frame, state: &ControlCenterState) {
             f.render_widget(diff_widget, pane_chunks[2]);
         }
         ControlCenterTab::Logs => {
-            let logs_text = state.logs.join("\n");
+            let reversed_logs: Vec<String> = state.logs.iter().rev().cloned().collect();
+            let logs_text = reversed_logs.join("\n");
             let logs_widget = Paragraph::new(logs_text)
                 .block(
                     Block::default()
@@ -1607,9 +1608,13 @@ fn draw_control_center(f: &mut ratatui::Frame, state: &ControlCenterState) {
     // Live logs stream
     let live_logs_count = state.logs.len();
     let live_logs_text = if live_logs_count > 4 {
-        state.logs[live_logs_count - 4..].join("\n")
+        let mut last_logs: Vec<String> = state.logs[live_logs_count - 4..].to_vec();
+        last_logs.reverse();
+        last_logs.join("\n")
     } else {
-        state.logs.join("\n")
+        let mut last_logs = state.logs.clone();
+        last_logs.reverse();
+        last_logs.join("\n")
     };
     let live_logs_widget = Paragraph::new(live_logs_text)
         .style(Style::default().fg(Color::DarkGray))
