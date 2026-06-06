@@ -176,6 +176,10 @@ async fn main() {
                 .subcommand(Command::new("install").about("Install endur as a system startup service (launchd on macOS, systemd on Linux)"))
                 .subcommand(Command::new("uninstall").about("Uninstall endur startup service"))
         )
+        .subcommand(
+            Command::new("tui")
+                .about("Interactive control center for daemon monitoring and snapshot management.")
+        )
         .get_matches();
 
     if matches.get_flag("version") {
@@ -334,6 +338,12 @@ async fn main() {
                     println!("Failed to list snapshots: {e}");
                     process::exit(1);
                 }
+            }
+        }
+        Some(("tui", _)) => {
+            if let Err(e) = endur::tui::run_control_center().await {
+                eprintln!("Failed to run interactive TUI: {e}");
+                process::exit(1);
             }
         }
         Some(("restore", arg_matches)) => {

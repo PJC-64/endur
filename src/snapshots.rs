@@ -127,7 +127,7 @@ fn get_git_email(repo: &Repository) -> String {
     "endur@github.io".to_string()
 }
 
-#[derive(Debug, Serialize, Deserialize, Eq, PartialEq)]
+#[derive(Debug, Serialize, Deserialize, Eq, PartialEq, Clone)]
 pub struct SnapshotInfo {
     pub commit_hash: String,
     pub base_hash: String,

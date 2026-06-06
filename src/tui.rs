@@ -9,11 +9,12 @@ use ratatui::{
     },
     layout::{Constraint, Direction, Layout},
     style::{Color, Modifier, Style},
-    widgets::{Block, BorderType, Borders, List, ListItem, ListState, Paragraph},
+    widgets::{Block, BorderType, Borders, List, ListItem, ListState, Paragraph, Tabs},
     Terminal,
 };
-use std::io;
+use std::io::{self, Read};
 use std::path::PathBuf;
+use std::time::SystemTime;
 
 struct TerminalGuard;
 
@@ -41,27 +42,28 @@ impl Drop for TerminalGuard {
     }
 }
 
-#[derive(PartialEq, Clone, Copy)]
-enum Focus {
+#[derive(PartialEq, Clone, Copy, Debug)]
+pub enum Focus {
     Repos,
     Snapshots,
     Files,
 }
 
-struct TuiState {
-    repos: Vec<PathBuf>,
-    repo_state: ListState,
-    snapshots: Vec<SnapshotInfo>,
-    snap_state: ListState,
-    files: Vec<(char, String)>,
-    files_state: ListState,
-    selected_files: std::collections::HashSet<String>,
-    focus: Focus,
-    in_repo_select: bool,
+#[derive(Clone)]
+pub struct TuiState {
+    pub repos: Vec<PathBuf>,
+    pub repo_state: ListState,
+    pub snapshots: Vec<SnapshotInfo>,
+    pub snap_state: ListState,
+    pub files: Vec<(char, String)>,
+    pub files_state: ListState,
+    pub selected_files: std::collections::HashSet<String>,
+    pub focus: Focus,
+    pub in_repo_select: bool,
 }
 
 impl TuiState {
-    fn new(repos: Vec<PathBuf>) -> Self {
+    pub fn new(repos: Vec<PathBuf>) -> Self {
         let mut repo_state = ListState::default();
         if !repos.is_empty() {
             repo_state.select(Some(0));
@@ -82,19 +84,19 @@ impl TuiState {
         state
     }
 
-    fn selected_repo_idx(&self) -> Option<usize> {
+    pub fn selected_repo_idx(&self) -> Option<usize> {
         self.repo_state.selected()
     }
 
-    fn selected_snapshot_idx(&self) -> Option<usize> {
+    pub fn selected_snapshot_idx(&self) -> Option<usize> {
         self.snap_state.selected()
     }
 
-    fn selected_file_idx(&self) -> Option<usize> {
+    pub fn selected_file_idx(&self) -> Option<usize> {
         self.files_state.selected()
     }
 
-    fn reload_snapshots(&mut self) {
+    pub fn reload_snapshots(&mut self) {
         if let Some(idx) = self.selected_repo_idx() {
             if idx < self.repos.len() {
                 let path = &self.repos[idx];
@@ -113,7 +115,7 @@ impl TuiState {
         self.reload_files();
     }
 
-    fn reload_files(&mut self) {
+    pub fn reload_files(&mut self) {
         self.selected_files.clear();
         self.files_state.select(None);
         if let Some(repo_idx) = self.selected_repo_idx() {
@@ -130,7 +132,7 @@ impl TuiState {
         self.files = Vec::new();
     }
 
-    fn next_repo(&mut self) {
+    pub fn next_repo(&mut self) {
         if self.repos.is_empty() {
             return;
         }
@@ -148,7 +150,7 @@ impl TuiState {
         self.reload_snapshots();
     }
 
-    fn prev_repo(&mut self) {
+    pub fn prev_repo(&mut self) {
         if self.repos.is_empty() {
             return;
         }
@@ -166,7 +168,7 @@ impl TuiState {
         self.reload_snapshots();
     }
 
-    fn next_snapshot(&mut self) {
+    pub fn next_snapshot(&mut self) {
         if self.snapshots.is_empty() {
             return;
         }
@@ -184,7 +186,7 @@ impl TuiState {
         self.reload_files();
     }
 
-    fn prev_snapshot(&mut self) {
+    pub fn prev_snapshot(&mut self) {
         if self.snapshots.is_empty() {
             return;
         }
@@ -202,7 +204,7 @@ impl TuiState {
         self.reload_files();
     }
 
-    fn next_file(&mut self) {
+    pub fn next_file(&mut self) {
         if self.files.is_empty() {
             return;
         }
@@ -219,7 +221,7 @@ impl TuiState {
         self.files_state.select(Some(i));
     }
 
-    fn prev_file(&mut self) {
+    pub fn prev_file(&mut self) {
         if self.files.is_empty() {
             return;
         }
@@ -236,7 +238,7 @@ impl TuiState {
         self.files_state.select(Some(i));
     }
 
-    fn toggle_selected_file(&mut self) {
+    pub fn toggle_selected_file(&mut self) {
         if let Some(idx) = self.selected_file_idx() {
             if idx < self.files.len() {
                 let path = self.files[idx].1.clone();
@@ -620,4 +622,928 @@ pub fn run_interactive(
             }
         }
     }
+}
+
+// =============================================================================
+// NEW: Async Control Center TUI
+// =============================================================================
+
+#[derive(PartialEq, Clone, Copy, Debug)]
+pub enum ControlCenterTab {
+    Repos,
+    Snapshots,
+    Logs,
+}
+
+#[derive(PartialEq, Clone, Copy, Debug)]
+pub enum Tab2Focus {
+    Snapshots,
+    Files,
+    Preview,
+}
+
+pub struct ControlCenterState {
+    pub tab: ControlCenterTab,
+    pub repos_state: TuiState,
+    pub tab2_focus: Tab2Focus,
+
+    pub daemon_running: bool,
+    pub daemon_pid: Option<u32>,
+    pub daemon_start_time: Option<SystemTime>,
+
+    pub logs: Vec<String>,
+    pub logs_scroll: u16,
+    pub preview_scroll: u16,
+
+    pub input_mode: bool,
+    pub input_buffer: String,
+
+    pub message: Option<String>,
+    pub message_time: Option<std::time::Instant>,
+}
+
+impl ControlCenterState {
+    pub fn new(repos_state: TuiState) -> Self {
+        let log_path = crate::database::RuntimeLock::get_endur_cache_home().join("endur.log");
+        let initial_logs = read_initial_logs(&log_path);
+
+        let daemon_running = crate::database::RuntimeLock::is_active();
+        let (daemon_pid, daemon_start_time) = if daemon_running {
+            let lock = crate::database::RuntimeLock::load();
+            (lock.pid, lock.start_time)
+        } else {
+            (None, None)
+        };
+
+        Self {
+            tab: ControlCenterTab::Repos,
+            repos_state,
+            tab2_focus: Tab2Focus::Snapshots,
+            daemon_running,
+            daemon_pid,
+            daemon_start_time,
+            logs: initial_logs,
+            logs_scroll: 0,
+            preview_scroll: 0,
+            input_mode: false,
+            input_buffer: String::new(),
+            message: Some("Welcome to Endur Control Center!".to_string()),
+            message_time: Some(std::time::Instant::now()),
+        }
+    }
+
+    pub fn show_message(&mut self, msg: String) {
+        self.message = Some(msg);
+        self.message_time = Some(std::time::Instant::now());
+    }
+
+    pub fn get_current_preview_text(&self) -> String {
+        if let Some(repo_idx) = self.repos_state.selected_repo_idx() {
+            if let Some(snap_idx) = self.repos_state.selected_snapshot_idx() {
+                if repo_idx < self.repos_state.repos.len()
+                    && snap_idx < self.repos_state.snapshots.len()
+                {
+                    let repo_path = &self.repos_state.repos[repo_idx];
+                    let commit_hash = &self.repos_state.snapshots[snap_idx].commit_hash;
+
+                    if self.tab2_focus == Tab2Focus::Preview || self.tab2_focus == Tab2Focus::Files
+                    {
+                        if let Some(file_idx) = self.repos_state.selected_file_idx() {
+                            if file_idx < self.repos_state.files.len() {
+                                let file_path = &self.repos_state.files[file_idx].1;
+                                return get_file_diff(repo_path, commit_hash, file_path);
+                            }
+                        }
+                    }
+
+                    return get_commit_diff(repo_path, commit_hash);
+                }
+            }
+        }
+        "No diff preview available".to_string()
+    }
+}
+
+fn read_initial_logs(path: &std::path::Path) -> Vec<String> {
+    if let Ok(file) = std::fs::File::open(path) {
+        let reader = std::io::BufReader::new(file);
+        use std::io::BufRead;
+        let lines: Vec<String> = reader.lines().map_while(Result::ok).collect();
+        let len = lines.len();
+        if len > 100 {
+            lines[len - 100..].to_vec()
+        } else {
+            lines
+        }
+    } else {
+        Vec::new()
+    }
+}
+
+fn get_file_diff(repo_path: &std::path::Path, commit_hash: &str, file_path: &str) -> String {
+    if let Ok(repo) = git2::Repository::open(repo_path) {
+        if let Ok(oid) = git2::Oid::from_str(commit_hash) {
+            if let Ok(commit) = repo.find_commit(oid) {
+                let mut diff_text = Vec::new();
+                if commit.parent_count() > 0 {
+                    if let Ok(parent) = commit.parent(0) {
+                        let mut diff_opts = git2::DiffOptions::new();
+                        diff_opts.pathspec(file_path);
+                        if let Ok(diff) = repo.diff_tree_to_tree(
+                            Some(&parent.tree().unwrap()),
+                            Some(&commit.tree().unwrap()),
+                            Some(&mut diff_opts),
+                        ) {
+                            let _ = diff.print(git2::DiffFormat::Patch, |_, _, line| {
+                                diff_text.extend_from_slice(line.content());
+                                true
+                            });
+                        }
+                    }
+                } else {
+                    if let Ok(diff) =
+                        repo.diff_tree_to_tree(None, Some(&commit.tree().unwrap()), None)
+                    {
+                        let _ = diff.print(git2::DiffFormat::Patch, |_, _, line| {
+                            diff_text.extend_from_slice(line.content());
+                            true
+                        });
+                    }
+                }
+                if diff_text.is_empty() {
+                    return "No changes in this file.".to_string();
+                }
+                return String::from_utf8_lossy(&diff_text).to_string();
+            }
+        }
+    }
+    "Failed to load diff.".to_string()
+}
+
+fn get_commit_diff(repo_path: &std::path::Path, commit_hash: &str) -> String {
+    if let Ok(repo) = git2::Repository::open(repo_path) {
+        if let Ok(oid) = git2::Oid::from_str(commit_hash) {
+            if let Ok(commit) = repo.find_commit(oid) {
+                let mut diff_text = Vec::new();
+                diff_text.extend_from_slice(format!("Commit: {}\n", commit.id()).as_bytes());
+                if let Some(author) = commit.author().name() {
+                    diff_text.extend_from_slice(format!("Author: {}\n", author).as_bytes());
+                }
+                if let Some(summary) = commit.summary() {
+                    diff_text.extend_from_slice(format!("Message: {}\n\n", summary).as_bytes());
+                }
+
+                if commit.parent_count() > 0 {
+                    if let Ok(parent) = commit.parent(0) {
+                        if let Ok(diff) = repo.diff_tree_to_tree(
+                            Some(&parent.tree().unwrap()),
+                            Some(&commit.tree().unwrap()),
+                            None,
+                        ) {
+                            let _ = diff.print(git2::DiffFormat::Patch, |_, _, line| {
+                                diff_text.extend_from_slice(line.content());
+                                true
+                            });
+                        }
+                    }
+                } else {
+                    if let Ok(diff) =
+                        repo.diff_tree_to_tree(None, Some(&commit.tree().unwrap()), None)
+                    {
+                        let _ = diff.print(git2::DiffFormat::Patch, |_, _, line| {
+                            diff_text.extend_from_slice(line.content());
+                            true
+                        });
+                    }
+                }
+                return String::from_utf8_lossy(&diff_text).to_string();
+            }
+        }
+    }
+    "Failed to load commit diff.".to_string()
+}
+
+pub async fn run_control_center() -> Result<(), Box<dyn std::error::Error>> {
+    let mut repos: Vec<PathBuf> = Config::load().git_repos().collect();
+    repos.sort();
+
+    let repos_state = TuiState::new(repos);
+    let mut state = ControlCenterState::new(repos_state);
+
+    let _guard = TerminalGuard::create()?;
+    let backend = CrosstermBackend::new(io::stdout());
+    let mut terminal = Terminal::new(backend)?;
+
+    // Channels for async tasks
+    let (key_tx, mut key_rx) = tokio::sync::mpsc::channel(100);
+    let (status_tx, mut status_rx) = tokio::sync::mpsc::channel(10);
+    let (log_tx, mut log_rx) = tokio::sync::mpsc::channel(100);
+
+    // 1. Spawning key listener thread
+    tokio::spawn(async move {
+        loop {
+            if event::poll(std::time::Duration::from_millis(50)).unwrap_or(false) {
+                if let Ok(Event::Key(key)) = event::read() {
+                    if key.kind == KeyEventKind::Press && key_tx.send(key).await.is_err() {
+                        break;
+                    }
+                }
+            }
+            tokio::time::sleep(std::time::Duration::from_millis(10)).await;
+        }
+    });
+
+    // 2. Spawning daemon status checker task
+    tokio::spawn(async move {
+        loop {
+            let running = crate::database::RuntimeLock::is_active();
+            let lock_info = if running {
+                let lock = crate::database::RuntimeLock::load();
+                Some((lock.pid, lock.start_time))
+            } else {
+                None
+            };
+            if status_tx.send((running, lock_info)).await.is_err() {
+                break;
+            }
+            tokio::time::sleep(std::time::Duration::from_secs(2)).await;
+        }
+    });
+
+    // 3. Spawning log file tailing task
+    let log_path = crate::database::RuntimeLock::get_endur_cache_home().join("endur.log");
+    let log_path_clone = log_path.clone();
+    tokio::spawn(async move {
+        let mut file_offset = if let Ok(metadata) = std::fs::metadata(&log_path_clone) {
+            metadata.len()
+        } else {
+            0
+        };
+        loop {
+            tokio::time::sleep(std::time::Duration::from_millis(500)).await;
+            if let Ok(metadata) = std::fs::metadata(&log_path_clone) {
+                let new_len = metadata.len();
+                if new_len > file_offset {
+                    if let Ok(mut file) = std::fs::File::open(&log_path_clone) {
+                        use std::io::Seek;
+                        if file.seek(std::io::SeekFrom::Start(file_offset)).is_ok() {
+                            let mut buffer = String::new();
+                            if file.read_to_string(&mut buffer).is_ok() {
+                                for line in buffer.lines() {
+                                    if !line.is_empty() {
+                                        let _ = log_tx.send(line.to_string()).await;
+                                    }
+                                }
+                            }
+                        }
+                    }
+                    file_offset = new_len;
+                } else if new_len < file_offset {
+                    file_offset = 0;
+                }
+            }
+        }
+    });
+
+    let mut tick_interval = tokio::time::interval(std::time::Duration::from_millis(250));
+
+    loop {
+        // Clear message if it's older than 5 seconds
+        if let Some(time) = state.message_time {
+            if time.elapsed() > std::time::Duration::from_secs(5) {
+                state.message = None;
+                state.message_time = None;
+            }
+        }
+
+        // Draw TUI
+        terminal.draw(|f| {
+            draw_control_center(f, &state);
+        })?;
+
+        // Process async updates or inputs
+        tokio::select! {
+            _ = tick_interval.tick() => {
+                // Let the loop trigger a redraw on tick
+            }
+            // Key events
+            Some(key) = key_rx.recv() => {
+                if state.input_mode {
+                    match key.code {
+                        KeyCode::Esc => {
+                            state.input_mode = false;
+                            state.input_buffer.clear();
+                        }
+                        KeyCode::Enter => {
+                            let path_str = state.input_buffer.trim().to_string();
+                            state.input_mode = false;
+                            state.input_buffer.clear();
+                            if !path_str.is_empty() {
+                                let mut config = crate::config::Config::load();
+                                if let Err(e) = config.set_watch(path_str.clone(), crate::config::WatchConfig::default()) {
+                                    state.show_message(format!("Failed to watch: {}", e));
+                                } else {
+                                    config.save();
+                                    let _ = crate::poller::send_uds_command("reload").await;
+                                    state.show_message(format!("Started watching {}", path_str));
+                                    let mut new_repos: Vec<PathBuf> = crate::config::Config::load().git_repos().collect();
+                                    new_repos.sort();
+                                    state.repos_state.repos = new_repos;
+                                }
+                            }
+                        }
+                        KeyCode::Backspace => {
+                            state.input_buffer.pop();
+                        }
+                        KeyCode::Char(c) => {
+                            state.input_buffer.push(c);
+                        }
+                        _ => {}
+                    }
+                } else {
+                    match key.code {
+                        KeyCode::Char('q') => break,
+                        KeyCode::Char('1') => {
+                            state.tab = ControlCenterTab::Repos;
+                        }
+                        KeyCode::Char('2') => {
+                            state.tab = ControlCenterTab::Snapshots;
+                        }
+                        KeyCode::Char('3') => {
+                            state.tab = ControlCenterTab::Logs;
+                        }
+                        KeyCode::Tab => {
+                            state.tab = match state.tab {
+                                ControlCenterTab::Repos => ControlCenterTab::Snapshots,
+                                ControlCenterTab::Snapshots => ControlCenterTab::Logs,
+                                ControlCenterTab::Logs => ControlCenterTab::Repos,
+                            };
+                        }
+                        // Daemon Control
+                        KeyCode::Char('s') | KeyCode::Char('S') => {
+                            let current_exe = std::env::current_exe().unwrap_or_else(|_| std::path::PathBuf::from("endur"));
+                            let logfile_path = crate::database::RuntimeLock::get_endur_cache_home().join("endur.log");
+                            let _child = std::process::Command::new(current_exe)
+                                .arg("serve")
+                                .arg("--logfile")
+                                .arg(logfile_path)
+                                .spawn();
+                            state.show_message("Starting daemon...".to_string());
+                        }
+                        KeyCode::Char('k') | KeyCode::Char('K') => {
+                            let res = crate::poller::send_uds_command("kill").await;
+                            match res {
+                                Ok(msg) => state.show_message(format!("Daemon stopped: {}", msg)),
+                                Err(_) => {
+                                    if crate::database::RuntimeLock::is_active() {
+                                        let mut lock = crate::database::RuntimeLock::load();
+                                        lock.pid = None;
+                                        lock.save();
+                                        state.show_message("Daemon stopped via lock file fallback.".to_string());
+                                    } else {
+                                        state.show_message("Daemon is not running.".to_string());
+                                    }
+                                }
+                            }
+                        }
+                        KeyCode::Char('r') | KeyCode::Char('R') => {
+                            let res = crate::poller::send_uds_command("reload").await;
+                            match res {
+                                Ok(msg) => state.show_message(format!("Config reloaded: {}", msg)),
+                                Err(e) => state.show_message(format!("Reload failed: {}", e)),
+                            }
+                        }
+                        // Tab Specific inputs
+                        _ => {
+                            match state.tab {
+                                ControlCenterTab::Repos => {
+                                    match key.code {
+                                        KeyCode::Up => state.repos_state.prev_repo(),
+                                        KeyCode::Down => state.repos_state.next_repo(),
+                                        KeyCode::Char('a') => {
+                                            state.input_mode = true;
+                                            state.input_buffer.clear();
+                                        }
+                                        KeyCode::Char('d') => {
+                                            if let Some(idx) = state.repos_state.selected_repo_idx() {
+                                                if idx < state.repos_state.repos.len() {
+                                                    let path_str = state.repos_state.repos[idx].to_string_lossy().to_string();
+                                                    let mut config = crate::config::Config::load();
+                                                    if let Err(e) = config.set_unwatch(path_str.clone()) {
+                                                        state.show_message(format!("Failed to unwatch: {}", e));
+                                                    } else {
+                                                        config.save();
+                                                        let _ = crate::poller::send_uds_command("reload").await;
+                                                        state.show_message(format!("Stopped watching {}", path_str));
+                                                        let mut new_repos: Vec<PathBuf> = crate::config::Config::load().git_repos().collect();
+                                                        new_repos.sort();
+                                                        state.repos_state.repos = new_repos;
+                                                        state.repos_state.repo_state.select(Some(0));
+                                                        state.repos_state.reload_snapshots();
+                                                    }
+                                                }
+                                            }
+                                        }
+                                        KeyCode::Char('c') => {
+                                            let mut config = crate::config::Config::load();
+                                            let mut to_remove = Vec::new();
+                                            for repo_path_str in config.repos.keys() {
+                                                let path = std::path::Path::new(repo_path_str);
+                                                if git2::Repository::open(path).is_err() {
+                                                    to_remove.push(repo_path_str.clone());
+                                                }
+                                            }
+                                            if to_remove.is_empty() {
+                                                state.show_message("No invalid repositories found.".to_string());
+                                            } else {
+                                                for repo in &to_remove {
+                                                    config.repos.remove(repo);
+                                                }
+                                                config.save();
+                                                let _ = crate::poller::send_uds_command("reload").await;
+                                                state.show_message(format!("Cleaned up {} repositories.", to_remove.len()));
+                                                let mut new_repos: Vec<PathBuf> = crate::config::Config::load().git_repos().collect();
+                                                new_repos.sort();
+                                                state.repos_state.repos = new_repos;
+                                                state.repos_state.repo_state.select(Some(0));
+                                                state.repos_state.reload_snapshots();
+                                            }
+                                        }
+                                        _ => {}
+                                    }
+                                }
+                                ControlCenterTab::Snapshots => {
+                                    match key.code {
+                                        KeyCode::Left => {
+                                            state.tab2_focus = match state.tab2_focus {
+                                                Tab2Focus::Snapshots => Tab2Focus::Snapshots,
+                                                Tab2Focus::Files => Tab2Focus::Snapshots,
+                                                Tab2Focus::Preview => Tab2Focus::Files,
+                                            };
+                                        }
+                                        KeyCode::Right => {
+                                            state.tab2_focus = match state.tab2_focus {
+                                                Tab2Focus::Snapshots => {
+                                                    if !state.repos_state.files.is_empty() {
+                                                        state.repos_state.files_state.select(Some(0));
+                                                        Tab2Focus::Files
+                                                    } else {
+                                                        Tab2Focus::Snapshots
+                                                    }
+                                                }
+                                                Tab2Focus::Files => Tab2Focus::Preview,
+                                                Tab2Focus::Preview => Tab2Focus::Preview,
+                                            };
+                                        }
+                                        KeyCode::Up => {
+                                            match state.tab2_focus {
+                                                Tab2Focus::Snapshots => state.repos_state.prev_snapshot(),
+                                                Tab2Focus::Files => state.repos_state.prev_file(),
+                                                Tab2Focus::Preview => {
+                                                    if state.preview_scroll > 0 {
+                                                        state.preview_scroll -= 1;
+                                                    }
+                                                }
+                                            }
+                                        }
+                                        KeyCode::Down => {
+                                            match state.tab2_focus {
+                                                Tab2Focus::Snapshots => state.repos_state.next_snapshot(),
+                                                Tab2Focus::Files => state.repos_state.next_file(),
+                                                Tab2Focus::Preview => {
+                                                    state.preview_scroll += 1;
+                                                }
+                                            }
+                                        }
+                                        KeyCode::Char(' ') => {
+                                            if state.tab2_focus == Tab2Focus::Files {
+                                                state.repos_state.toggle_selected_file();
+                                            }
+                                        }
+                                        KeyCode::Enter => {
+                                            if let Some(snap_idx) = state.repos_state.selected_snapshot_idx() {
+                                                if let Some(repo_idx) = state.repos_state.selected_repo_idx() {
+                                                    let repo = &state.repos_state.repos[repo_idx];
+                                                    let hash = &state.repos_state.snapshots[snap_idx].commit_hash;
+
+                                                    let files_to_restore = if state.tab2_focus == Tab2Focus::Files && !state.repos_state.selected_files.is_empty() {
+                                                        Some(state.repos_state.selected_files.iter().cloned().collect::<Vec<String>>())
+                                                    } else if state.tab2_focus == Tab2Focus::Files {
+                                                        state.repos_state.selected_file_idx().map(|idx| vec![state.repos_state.files[idx].1.clone()])
+                                                    } else {
+                                                        None
+                                                    };
+
+                                                    drop(terminal);
+                                                    let _ = crossterm::terminal::disable_raw_mode();
+                                                    println!("\nRestoring... please wait.");
+
+                                                    match snapshots::restore(repo, hash, files_to_restore.as_deref()) {
+                                                        Ok(changes) => {
+                                                            if changes.is_empty() {
+                                                                println!("No files needed to be restored.");
+                                                            } else {
+                                                                println!("Successfully restored:");
+                                                                for (status, path) in changes {
+                                                                    println!("  {} {}", status, path);
+                                                                }
+                                                            }
+                                                        }
+                                                        Err(e) => println!("Restore failed: {}", e),
+                                                    }
+
+                                                    println!("\nPress Enter to return to TUI...");
+                                                    let mut input = String::new();
+                                                    let _ = std::io::stdin().read_line(&mut input);
+
+                                                    crossterm::terminal::enable_raw_mode()?;
+                                                    terminal = Terminal::new(CrosstermBackend::new(io::stdout()))?;
+                                                    terminal.clear()?;
+                                                    state.repos_state.reload_files();
+                                                    state.show_message("Restore completed.".to_string());
+                                                }
+                                            }
+                                        }
+                                        _ => {}
+                                    }
+                                }
+                                ControlCenterTab::Logs => {
+                                    match key.code {
+                                        KeyCode::Up => {
+                                            if state.logs_scroll > 0 {
+                                                state.logs_scroll -= 1;
+                                            }
+                                        }
+                                        KeyCode::Down => {
+                                            state.logs_scroll += 1;
+                                        }
+                                        _ => {}
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+            // Daemon status updates
+            Some((running, lock_info)) = status_rx.recv() => {
+                state.daemon_running = running;
+                if let Some((pid, start_time)) = lock_info {
+                    state.daemon_pid = pid;
+                    state.daemon_start_time = start_time;
+                } else {
+                    state.daemon_pid = None;
+                    state.daemon_start_time = None;
+                }
+            }
+            // Live logs tailing
+            Some(line) = log_rx.recv() => {
+                state.logs.push(line);
+                if state.logs.len() > 500 {
+                    state.logs.remove(0);
+                }
+            }
+        }
+    }
+
+    Ok(())
+}
+
+fn draw_control_center(f: &mut ratatui::Frame, state: &ControlCenterState) {
+    let chunks = Layout::default()
+        .direction(Direction::Vertical)
+        .constraints([
+            Constraint::Length(3), // Header
+            Constraint::Length(1), // Tabs
+            Constraint::Min(10),   // Active Pane
+            Constraint::Length(6), // Footer (logs + messages + help)
+        ])
+        .split(f.area());
+
+    // 1. Header
+    let daemon_status_str = if state.daemon_running {
+        let pid_str = state
+            .daemon_pid
+            .map(|p| p.to_string())
+            .unwrap_or_else(|| "unknown".to_string());
+        let uptime_str = state
+            .daemon_start_time
+            .and_then(|t| SystemTime::now().duration_since(t).ok())
+            .map(|d| {
+                let secs = d.as_secs();
+                if secs < 60 {
+                    format!("{}s", secs)
+                } else if secs < 3600 {
+                    format!("{}m", secs / 60)
+                } else {
+                    format!("{}h {}m", secs / 3600, (secs % 3600) / 60)
+                }
+            })
+            .unwrap_or_else(|| "unknown".to_string());
+        format!("● RUNNING (PID: {}, Uptime: {})", pid_str, uptime_str)
+    } else {
+        "● NOT RUNNING".to_string()
+    };
+    let header_style = if state.daemon_running {
+        Style::default()
+            .fg(Color::Cyan)
+            .add_modifier(Modifier::BOLD)
+    } else {
+        Style::default().fg(Color::Red).add_modifier(Modifier::BOLD)
+    };
+    let header_widget = Paragraph::new(format!(
+        " Endur Control Center v{}  │  Daemon Status: {}  │  [S] Start Daemon  [K] Kill Daemon  [R] Reload Config",
+        env!("CARGO_PKG_VERSION"),
+        daemon_status_str
+    ))
+    .style(header_style)
+    .block(
+        Block::default()
+            .borders(Borders::ALL)
+            .border_type(BorderType::Rounded)
+            .title(" Status & Control "),
+    );
+    f.render_widget(header_widget, chunks[0]);
+
+    // 2. Tabs
+    let tab_names = vec![
+        " [1] Repositories ",
+        " [2] Backups & Restore ",
+        " [3] Full System Log ",
+    ];
+    let active_idx = match state.tab {
+        ControlCenterTab::Repos => 0,
+        ControlCenterTab::Snapshots => 1,
+        ControlCenterTab::Logs => 2,
+    };
+    let tabs_widget = Tabs::new(tab_names)
+        .select(active_idx)
+        .style(Style::default().fg(Color::DarkGray))
+        .highlight_style(
+            Style::default()
+                .fg(Color::Yellow)
+                .add_modifier(Modifier::BOLD),
+        );
+    f.render_widget(tabs_widget, chunks[1]);
+
+    // 3. Active Pane
+    match state.tab {
+        ControlCenterTab::Repos => {
+            let pane_chunks = Layout::default()
+                .direction(Direction::Horizontal)
+                .constraints([Constraint::Percentage(40), Constraint::Percentage(60)])
+                .split(chunks[2]);
+
+            // Watched Repositories
+            let repo_items: Vec<ListItem> = state
+                .repos_state
+                .repos
+                .iter()
+                .map(|p| ListItem::new(p.to_string_lossy().to_string()))
+                .collect();
+            let mut repos_list_state = state.repos_state.repo_state;
+            let repos_list = List::new(repo_items)
+                .block(
+                    Block::default()
+                        .borders(Borders::ALL)
+                        .border_type(BorderType::Rounded)
+                        .border_style(Style::default().fg(Color::Green))
+                        .title(" Watched Repositories "),
+                )
+                .highlight_style(
+                    Style::default()
+                        .bg(Color::Rgb(40, 40, 40))
+                        .fg(Color::Yellow)
+                        .add_modifier(Modifier::BOLD),
+                )
+                .highlight_symbol("▶ ");
+            f.render_stateful_widget(repos_list, pane_chunks[0], &mut repos_list_state);
+
+            // Details pane or Add Repo input
+            if state.input_mode {
+                let input_widget = Paragraph::new(format!("> {}", state.input_buffer)).block(
+                    Block::default()
+                        .borders(Borders::ALL)
+                        .border_type(BorderType::Rounded)
+                        .border_style(Style::default().fg(Color::Yellow))
+                        .title(" Add Repository to Watch (Enter absolute path) "),
+                );
+                f.render_widget(input_widget, pane_chunks[1]);
+            } else {
+                let detail_text = if let Some(idx) = state.repos_state.selected_repo_idx() {
+                    if idx < state.repos_state.repos.len() {
+                        let path = &state.repos_state.repos[idx];
+                        let backups_count = state.repos_state.snapshots.len();
+                        format!(
+                            "Repository Path: {}\n\nTotal Snapshots: {}\n\nPress [d] to stop watching this repository.\nPress [c] to run cleanup on watched paths.",
+                            path.display(),
+                            backups_count
+                        )
+                    } else {
+                        "No repository selected.".to_string()
+                    }
+                } else {
+                    "No repository selected.".to_string()
+                };
+
+                let detail_widget = Paragraph::new(detail_text).block(
+                    Block::default()
+                        .borders(Borders::ALL)
+                        .border_type(BorderType::Rounded)
+                        .title(" Repository Detail "),
+                );
+                f.render_widget(detail_widget, pane_chunks[1]);
+            }
+        }
+        ControlCenterTab::Snapshots => {
+            let pane_chunks = Layout::default()
+                .direction(Direction::Horizontal)
+                .constraints([
+                    Constraint::Percentage(30), // Snapshots
+                    Constraint::Percentage(30), // Changed files
+                    Constraint::Percentage(40), // Diff preview
+                ])
+                .split(chunks[2]);
+
+            // Snapshots list
+            let snap_border_color = if state.tab2_focus == Tab2Focus::Snapshots {
+                Color::Green
+            } else {
+                Color::DarkGray
+            };
+            let snap_items: Vec<ListItem> = state
+                .repos_state
+                .snapshots
+                .iter()
+                .map(|s| {
+                    let datetime = chrono::Local
+                        .timestamp_opt(s.timestamp, 0)
+                        .single()
+                        .map(|dt| dt.format("%m-%d %H:%M").to_string())
+                        .unwrap_or_else(|| "Unknown".to_string());
+                    ListItem::new(format!("{} │ {}", &s.commit_hash[..8], datetime))
+                })
+                .collect();
+            let mut snap_list_state = state.repos_state.snap_state;
+            let snap_list = List::new(snap_items)
+                .block(
+                    Block::default()
+                        .borders(Borders::ALL)
+                        .border_type(BorderType::Rounded)
+                        .border_style(Style::default().fg(snap_border_color))
+                        .title(" Backups "),
+                )
+                .highlight_style(
+                    Style::default()
+                        .bg(Color::Rgb(40, 40, 40))
+                        .fg(Color::Yellow)
+                        .add_modifier(Modifier::BOLD),
+                )
+                .highlight_symbol("▶ ");
+            f.render_stateful_widget(snap_list, pane_chunks[0], &mut snap_list_state);
+
+            // Changed Files list
+            let file_border_color = if state.tab2_focus == Tab2Focus::Files {
+                Color::Green
+            } else {
+                Color::DarkGray
+            };
+            let file_items: Vec<ListItem> = state
+                .repos_state
+                .files
+                .iter()
+                .map(|(status, path)| {
+                    let check = if state.repos_state.selected_files.contains(path) {
+                        "[x]"
+                    } else {
+                        "[ ]"
+                    };
+                    let status_style = match status {
+                        'A' => Style::default().fg(Color::Green),
+                        'D' => Style::default().fg(Color::Red),
+                        'M' => Style::default().fg(Color::Yellow),
+                        _ => Style::default().fg(Color::Cyan),
+                    };
+                    use ratatui::text::{Line, Span};
+                    let line = Line::from(vec![
+                        Span::raw(format!("{} ", check)),
+                        Span::styled(format!("[{}]", status), status_style),
+                        Span::raw(format!(" {}", path)),
+                    ]);
+                    ListItem::new(line)
+                })
+                .collect();
+            let mut file_list_state = state.repos_state.files_state;
+            let file_list = List::new(file_items)
+                .block(
+                    Block::default()
+                        .borders(Borders::ALL)
+                        .border_type(BorderType::Rounded)
+                        .border_style(Style::default().fg(file_border_color))
+                        .title(" Files "),
+                )
+                .highlight_style(
+                    Style::default()
+                        .bg(Color::Rgb(40, 40, 40))
+                        .fg(Color::Yellow)
+                        .add_modifier(Modifier::BOLD),
+                )
+                .highlight_symbol("▶ ");
+            f.render_stateful_widget(file_list, pane_chunks[1], &mut file_list_state);
+
+            // Diff Preview
+            let preview_border_color = if state.tab2_focus == Tab2Focus::Preview {
+                Color::Green
+            } else {
+                Color::DarkGray
+            };
+            let diff_text = state.get_current_preview_text();
+            let diff_widget = Paragraph::new(diff_text)
+                .block(
+                    Block::default()
+                        .borders(Borders::ALL)
+                        .border_type(BorderType::Rounded)
+                        .border_style(Style::default().fg(preview_border_color))
+                        .title(" Diff Preview "),
+                )
+                .scroll((state.preview_scroll, 0))
+                .wrap(ratatui::widgets::Wrap { trim: false });
+            f.render_widget(diff_widget, pane_chunks[2]);
+        }
+        ControlCenterTab::Logs => {
+            let logs_text = state.logs.join("\n");
+            let logs_widget = Paragraph::new(logs_text)
+                .block(
+                    Block::default()
+                        .borders(Borders::ALL)
+                        .border_type(BorderType::Rounded)
+                        .title(" Full System Log (endur.log) "),
+                )
+                .scroll((state.logs_scroll, 0));
+            f.render_widget(logs_widget, chunks[2]);
+        }
+    }
+
+    // 4. Footer
+    let footer_chunks = Layout::default()
+        .direction(Direction::Vertical)
+        .constraints([
+            Constraint::Length(3), // Live logs stream
+            Constraint::Length(1), // Actions message
+            Constraint::Length(2), // Help shortcuts
+        ])
+        .split(chunks[3]);
+
+    // Live logs stream
+    let live_logs_count = state.logs.len();
+    let live_logs_text = if live_logs_count > 3 {
+        state.logs[live_logs_count - 3..].join("\n")
+    } else {
+        state.logs.join("\n")
+    };
+    let live_logs_widget = Paragraph::new(live_logs_text)
+        .style(Style::default().fg(Color::DarkGray))
+        .block(
+            Block::default()
+                .borders(Borders::ALL)
+                .border_type(BorderType::Rounded)
+                .title(" Live Logs Stream "),
+        );
+    f.render_widget(live_logs_widget, footer_chunks[0]);
+
+    // Action status message
+    let message_text = state.message.as_deref().unwrap_or("");
+    let message_widget = Paragraph::new(message_text).style(
+        Style::default()
+            .fg(Color::Yellow)
+            .add_modifier(Modifier::BOLD),
+    );
+    f.render_widget(message_widget, footer_chunks[1]);
+
+    // Help shortcuts
+    let help_text = match state.tab {
+        ControlCenterTab::Repos => {
+            if state.input_mode {
+                " [Esc] Cancel Input  │  [Enter] Submit Path"
+            } else {
+                " [Tab/1-3] Switch Tab  │  [a] Watch Repo  │  [d] Stop Watching  │  [c] Run Cleanup  │  [q] Exit"
+            }
+        }
+        ControlCenterTab::Snapshots => {
+            match state.tab2_focus {
+                Tab2Focus::Snapshots => " [Tab/1-3] Switch Tab  │  [Right] View Files  │  [↑/↓] Navigate Backups  │  [q] Exit",
+                Tab2Focus::Files => " [Space] Toggle Checkbox  │  [Enter] Restore Checked  │  [Left] Back to Backups  │  [Right] View Diff  │  [q] Exit",
+                Tab2Focus::Preview => " [↑/↓] Scroll Diff Text  │  [Left] Back to Files  │  [Tab/1-3] Switch Tab  │  [q] Exit",
+            }
+        }
+        ControlCenterTab::Logs => " [Tab/1-3] Switch Tab  │  [↑/↓] Scroll Logs  │  [q] Exit",
+    };
+    let help_widget = Paragraph::new(help_text)
+        .style(Style::default().fg(Color::Gray))
+        .block(
+            Block::default()
+                .borders(Borders::TOP)
+                .border_style(Style::default().fg(Color::DarkGray)),
+        );
+    f.render_widget(help_widget, footer_chunks[2]);
 }
