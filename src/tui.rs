@@ -1091,11 +1091,29 @@ pub async fn run_control_center() -> Result<(), Box<dyn std::error::Error>> {
                         KeyCode::Char('s') | KeyCode::Char('S') => {
                             let current_exe = std::env::current_exe().unwrap_or_else(|_| std::path::PathBuf::from("endur"));
                             let logfile_path = crate::database::RuntimeLock::get_endur_cache_home().join("endur.log");
-                            let _child = std::process::Command::new(current_exe)
-                                .arg("serve")
+                            let mut cmd = std::process::Command::new(current_exe);
+                            cmd.arg("serve")
                                 .arg("--logfile")
-                                .arg(logfile_path)
-                                .spawn();
+                                .arg(logfile_path);
+                            #[cfg(unix)]
+                            {
+                                use std::os::unix::process::CommandExt;
+                                unsafe {
+                                    cmd.pre_exec(|| {
+                                        extern "C" {
+                                            fn setsid() -> i32;
+                                        }
+                                        setsid();
+                                        Ok(())
+                                    });
+                                }
+                            }
+                            #[cfg(windows)]
+                            {
+                                use std::os::windows::process::CommandExt;
+                                cmd.creation_flags(0x00000008 | 0x00000200);
+                            }
+                            let _child = cmd.spawn();
                             state.show_message("Starting daemon...".to_string());
                         }
                         KeyCode::Char('k') | KeyCode::Char('K') => {
