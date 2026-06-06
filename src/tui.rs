@@ -724,16 +724,122 @@ impl ControlCenterState {
     }
 }
 
+fn format_log_line(line: &str) -> Option<String> {
+    let json: serde_json::Value = match serde_json::from_str(line) {
+        Ok(v) => v,
+        Err(_) => return Some(line.to_string()),
+    };
+
+    let time_str = if let Some(time_val) = json.get("time").and_then(|v| v.as_str()) {
+        if let Ok(dt) = chrono::DateTime::parse_from_rfc3339(time_val) {
+            format!("{} ", dt.format("%Y-%m-%d %H:%M:%S"))
+        } else {
+            format!("{} ", time_val)
+        }
+    } else {
+        String::new()
+    };
+
+    let level_raw = json.get("level").and_then(|v| v.as_str()).unwrap_or("INFO");
+    let level_str = if level_raw.contains("Error") || level_raw.contains("ERROR") {
+        "ERROR"
+    } else if level_raw.contains("Warn") || level_raw.contains("WARN") {
+        "WARN"
+    } else if level_raw.contains("Debug") || level_raw.contains("DEBUG") {
+        "DEBUG"
+    } else if level_raw.contains("Trace") || level_raw.contains("TRACE") {
+        "TRACE"
+    } else {
+        "INFO"
+    };
+
+    let fields = match json.get("fields").and_then(|v| v.as_object()) {
+        Some(f) => f,
+        None => {
+            let msg = json.get("message").and_then(|v| v.as_str()).unwrap_or("");
+            return Some(format!("{}[{}] {}", time_str, level_str, msg));
+        }
+    };
+
+    let message = fields.get("message").and_then(|v| v.as_str()).unwrap_or("");
+
+    if message == "info_operation" {
+        if let Some(operation) = fields.get("operation").and_then(|v| v.as_object()) {
+            if let Some(snapshot) = operation.get("Snapshot").and_then(|v| v.as_object()) {
+                let repo = snapshot
+                    .get("repo")
+                    .and_then(|v| v.as_str())
+                    .unwrap_or("unknown");
+                let error = snapshot.get("error").and_then(|v| v.as_str());
+                let op = snapshot.get("op").and_then(|v| v.as_object());
+                let latency = snapshot
+                    .get("latency")
+                    .and_then(|v| v.as_f64())
+                    .unwrap_or(0.0);
+
+                if let Some(op_obj) = op {
+                    let commit_hash = op_obj
+                        .get("commit_hash")
+                        .and_then(|v| v.as_str())
+                        .unwrap_or("");
+                    let endur_branch = op_obj
+                        .get("endur_branch")
+                        .and_then(|v| v.as_str())
+                        .unwrap_or("");
+                    let short_hash = if commit_hash.len() >= 8 {
+                        &commit_hash[..8]
+                    } else {
+                        commit_hash
+                    };
+                    return Some(format!(
+                        "{}[{}] Repository '{}' snapshot captured: commit {}, branch {} (latency: {:.2}s)",
+                        time_str, level_str, repo, short_hash, endur_branch, latency
+                    ));
+                } else if let Some(err_msg) = error {
+                    return Some(format!(
+                        "{}[{}] Repository '{}' snapshot failed: {} (latency: {:.2}s)",
+                        time_str, "ERROR", repo, err_msg, latency
+                    ));
+                } else {
+                    return None;
+                }
+            } else if let Some(stats) = operation.get("CollectStats").and_then(|v| v.as_object()) {
+                let count = stats
+                    .get("loop_stats")
+                    .and_then(|v| v.as_object())
+                    .and_then(|h| h.get("count"))
+                    .and_then(|v| v.as_u64())
+                    .unwrap_or(0);
+                return Some(format!(
+                    "{}[{}] Stats collection: processed {} check loops",
+                    time_str, level_str, count
+                ));
+            }
+        }
+    }
+
+    if message.starts_with("Checking repo for changes:") {
+        return None;
+    }
+
+    Some(format!("{}[{}] {}", time_str, level_str, message))
+}
+
 fn read_initial_logs(path: &std::path::Path) -> Vec<String> {
     if let Ok(file) = std::fs::File::open(path) {
         let reader = std::io::BufReader::new(file);
         use std::io::BufRead;
-        let lines: Vec<String> = reader.lines().map_while(Result::ok).collect();
-        let len = lines.len();
+        let mut formatted_lines = Vec::new();
+        for line in reader.lines().map_while(Result::ok) {
+            if let Some(formatted) = format_log_line(&line) {
+                formatted_lines.push(formatted);
+            }
+        }
+        let len = formatted_lines.len();
         if len > 100 {
-            lines[len - 100..].to_vec()
+            formatted_lines[len - 100..].to_vec()
         } else {
-            lines
+            formatted_lines
         }
     } else {
         Vec::new()
@@ -1198,9 +1304,11 @@ pub async fn run_control_center() -> Result<(), Box<dyn std::error::Error>> {
             }
             // Live logs tailing
             Some(line) = log_rx.recv() => {
-                state.logs.push(line);
-                if state.logs.len() > 500 {
-                    state.logs.remove(0);
+                if let Some(formatted) = format_log_line(&line) {
+                    state.logs.push(formatted);
+                    if state.logs.len() > 500 {
+                        state.logs.remove(0);
+                    }
                 }
             }
         }
