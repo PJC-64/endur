@@ -32,6 +32,8 @@ Using [lazy.nvim](https://github.com/folke/lazy.nvim):
 - `:EndurWatch` — Manually registers the current file's repository path with Endur.
 - `:EndurSnapshots` — Opens the Telescope snapshot picker to view or restore snapshots.
 - `:EndurStatus` — Prints the status of the current repository in the command line area.
+- `:EndurTui` — Launches the interactive Control Center TUI inside a Neovim split terminal window.
+
 
 ## Statusline Integration
 

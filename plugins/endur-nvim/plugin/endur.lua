@@ -20,3 +20,8 @@ vim.api.nvim_create_user_command("EndurStatus", function()
   require("endur").print_status()
 end, {})
 
+vim.api.nvim_create_user_command("EndurTui", function()
+  require("endur").tui()
+end, {})
+
+

@@ -45,6 +45,27 @@ function M.snapshots()
   telescope.extensions.endur.snapshots()
 end
 
+-- Launch the Control Center TUI inside a terminal split
+function M.tui()
+  local endur_path = M.config.endur_path
+  if vim.fn.executable(endur_path) == 0 then
+    vim.notify("endur: executable '" .. endur_path .. "' not found or not executable.", vim.log.levels.ERROR)
+    return
+  end
+
+  -- Create a new split window with a scratch buffer and launch TUI
+  vim.cmd("new")
+  vim.fn.termopen({ endur_path, "tui" }, {
+    on_exit = function(_, exit_code)
+      if exit_code == 0 then
+        vim.cmd("bdelete!")
+      end
+    end
+  })
+  vim.cmd("startinsert")
+end
+
+
 -- Setup autocommands to run endur watch on active buffers
 function M.setup_autocommands()
   local group = vim.api.nvim_create_augroup("Endur", { clear = true })
