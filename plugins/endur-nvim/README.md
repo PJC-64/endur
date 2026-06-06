@@ -1,5 +1,8 @@
 # endur-nvim
 
+> [!WARNING]
+> **Active Development**: This plugin and the core `endur` tool are currently in active development. Use is not as yet recommended for production environments.
+
 A Neovim plugin for the [endur](https://github.com/PJC-64/endur) Git auto-backup tool.
 
 ## NOTE - UNDER DEVELOPMENT
@@ -28,6 +31,7 @@ Using [lazy.nvim](https://github.com/folke/lazy.nvim):
 ## Usage
 - `:EndurWatch` — Manually registers the current file's repository path with Endur.
 - `:EndurSnapshots` — Opens the Telescope snapshot picker to view or restore snapshots.
+- `:EndurStatus` — Prints the status of the current repository in the command line area.
 
 ## Statusline Integration
 
@@ -47,10 +51,11 @@ require("lualine").setup({
         end,
         color = function()
           local status_info = require("endur").get_current_repo_status()
+          local get_color = require("lualine.utils.utils").extract_highlight_colors
           if status_info and status_info.status == "OK" then
-            return "EndurClean"
+            return { fg = get_color("DiagnosticOk", "fg") }
           else
-            return "EndurModified"
+            return { fg = get_color("DiagnosticWarn", "fg") }
           end
         end,
         cond = function()
