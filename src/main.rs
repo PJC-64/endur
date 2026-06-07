@@ -128,6 +128,10 @@ async fn main() {
                 .short_flag('M')
                 .long_flag("metrics")
                 .about("Convert logs into richer metrics about snapshots.")
+                .disable_help_flag(true)
+                .arg(arg!(--help "Print help")
+                     .action(clap::builder::ArgAction::Help)
+                )
                 .arg(arg!(-i --input <FILE>)
                      .required(false)
                      .help("The log file to read. Defaults to stdin.")
@@ -135,6 +139,12 @@ async fn main() {
                 .arg(arg!(-o --output <FILE>)
                      .required(false)
                      .help("The json file to write. Defaults to stdout.")
+                 )
+                .arg(Arg::new("human-readable")
+                     .short('h')
+                     .long("human-readable")
+                     .action(clap::builder::ArgAction::SetTrue)
+                     .help("Print metrics in a human-readable table and summary format")
                  )
         )
         .subcommand(
@@ -318,7 +328,8 @@ async fn main() {
                 },
                 None => Box::new(BufWriter::new(stdout())),
             };
-            if let Err(e) = metrics::get_snapshot_metrics(&mut input, &mut output) {
+            let human_readable = arg_matches.get_flag("human-readable");
+            if let Err(e) = metrics::get_snapshot_metrics(&mut input, &mut output, human_readable) {
                 eprintln!("Failed: {e}");
                 process::exit(1);
             }
