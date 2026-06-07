@@ -333,7 +333,9 @@ async fn main() {
                 None => Box::new(BufWriter::new(stdout())),
             };
             let human_readable = arg_matches.get_flag("human-readable");
-            if let Err(e) = metrics::get_snapshot_metrics(&mut input, &mut output, human_readable) {
+            if let Err(e) =
+                metrics::get_snapshot_metrics(&mut input, &mut output, human_readable, false)
+            {
                 eprintln!("Failed: {e}");
                 process::exit(1);
             }

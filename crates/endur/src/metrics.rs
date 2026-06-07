@@ -47,6 +47,7 @@ pub fn get_snapshot_metrics(
     input: &mut dyn io::Read,
     output: &mut dyn io::Write,
     human_readable: bool,
+    summary_at_top: bool,
 ) -> FlexResult<()> {
     let mut reader = io::BufReader::new(input);
     let mut writer = io::BufWriter::new(output);
@@ -84,6 +85,71 @@ pub fn get_snapshot_metrics(
             "{:<19}  {:<30}  {:>5}  {:>10}  {:>9}  {:>8}  {:<7}",
             "Date/Time", "Repository", "Files", "Insertions", "Deletions", "Latency", "Commit"
         );
+
+        let total_snapshots = snapshots.len();
+        let mut unique_repos = std::collections::HashSet::new();
+        let mut total_files = 0;
+        let mut total_insertions = 0;
+        let mut total_deletions = 0;
+        let mut latencies = Vec::new();
+
+        for s in &snapshots {
+            if let Some(repo) = s.get("repo").and_then(|v| v.as_str()) {
+                unique_repos.insert(repo.to_string());
+            }
+            total_files += s
+                .get("num_files_changed")
+                .and_then(|v| v.as_u64())
+                .unwrap_or(0);
+            total_insertions += s.get("insertions").and_then(|v| v.as_u64()).unwrap_or(0);
+            total_deletions += s.get("deletions").and_then(|v| v.as_u64()).unwrap_or(0);
+            if let Some(latency) = s.get("latency").and_then(|v| v.as_f64()) {
+                latencies.push(latency);
+            }
+        }
+
+        let avg_latency = if latencies.is_empty() {
+            0.0
+        } else {
+            latencies.iter().sum::<f64>() / latencies.len() as f64
+        };
+        let max_latency = latencies.iter().copied().fold(0.0, f64::max);
+
+        let formatted_avg = if avg_latency < 1.0 {
+            format!("{:.1}ms", avg_latency * 1000.0)
+        } else {
+            format!("{:.2}s", avg_latency)
+        };
+        let formatted_max = if max_latency < 1.0 {
+            format!("{:.1}ms", max_latency * 1000.0)
+        } else {
+            format!("{:.2}s", max_latency)
+        };
+
+        if summary_at_top {
+            writeln!(&mut writer, "Summary:")?;
+            writeln!(&mut writer, "  Total Snapshots     : {}", total_snapshots)?;
+            writeln!(
+                &mut writer,
+                "  Watched Repositories: {}",
+                unique_repos.len()
+            )?;
+            writeln!(&mut writer, "  Total Files Changed : {}", total_files)?;
+            writeln!(
+                &mut writer,
+                "  Total Insertions    : {} (+)",
+                total_insertions
+            )?;
+            writeln!(
+                &mut writer,
+                "  Total Deletions     : {} (-)",
+                total_deletions
+            )?;
+            writeln!(&mut writer, "  Average Latency     : {}", formatted_avg)?;
+            writeln!(&mut writer, "  Maximum Latency     : {}", formatted_max)?;
+            writeln!(&mut writer, "{}", "-".repeat(header.len()))?;
+        }
+
         writeln!(&mut writer, "{header}")?;
         writeln!(&mut writer, "{}", "-".repeat(header.len()))?;
 
@@ -132,67 +198,29 @@ pub fn get_snapshot_metrics(
             )?;
         }
 
-        let total_snapshots = snapshots.len();
-        let mut unique_repos = std::collections::HashSet::new();
-        let mut total_files = 0;
-        let mut total_insertions = 0;
-        let mut total_deletions = 0;
-        let mut latencies = Vec::new();
-
-        for s in &snapshots {
-            if let Some(repo) = s.get("repo").and_then(|v| v.as_str()) {
-                unique_repos.insert(repo.to_string());
-            }
-            total_files += s
-                .get("num_files_changed")
-                .and_then(|v| v.as_u64())
-                .unwrap_or(0);
-            total_insertions += s.get("insertions").and_then(|v| v.as_u64()).unwrap_or(0);
-            total_deletions += s.get("deletions").and_then(|v| v.as_u64()).unwrap_or(0);
-            if let Some(latency) = s.get("latency").and_then(|v| v.as_f64()) {
-                latencies.push(latency);
-            }
+        if !summary_at_top {
+            writeln!(&mut writer, "{}", "-".repeat(header.len()))?;
+            writeln!(&mut writer, "Summary:")?;
+            writeln!(&mut writer, "  Total Snapshots     : {}", total_snapshots)?;
+            writeln!(
+                &mut writer,
+                "  Watched Repositories: {}",
+                unique_repos.len()
+            )?;
+            writeln!(&mut writer, "  Total Files Changed : {}", total_files)?;
+            writeln!(
+                &mut writer,
+                "  Total Insertions    : {} (+)",
+                total_insertions
+            )?;
+            writeln!(
+                &mut writer,
+                "  Total Deletions     : {} (-)",
+                total_deletions
+            )?;
+            writeln!(&mut writer, "  Average Latency     : {}", formatted_avg)?;
+            writeln!(&mut writer, "  Maximum Latency     : {}", formatted_max)?;
         }
-
-        let avg_latency = if latencies.is_empty() {
-            0.0
-        } else {
-            latencies.iter().sum::<f64>() / latencies.len() as f64
-        };
-        let max_latency = latencies.iter().copied().fold(0.0, f64::max);
-
-        let formatted_avg = if avg_latency < 1.0 {
-            format!("{:.1}ms", avg_latency * 1000.0)
-        } else {
-            format!("{:.2}s", avg_latency)
-        };
-        let formatted_max = if max_latency < 1.0 {
-            format!("{:.1}ms", max_latency * 1000.0)
-        } else {
-            format!("{:.2}s", max_latency)
-        };
-
-        writeln!(&mut writer, "{}", "-".repeat(header.len()))?;
-        writeln!(&mut writer, "Summary:")?;
-        writeln!(&mut writer, "  Total Snapshots     : {}", total_snapshots)?;
-        writeln!(
-            &mut writer,
-            "  Watched Repositories: {}",
-            unique_repos.len()
-        )?;
-        writeln!(&mut writer, "  Total Files Changed : {}", total_files)?;
-        writeln!(
-            &mut writer,
-            "  Total Insertions    : {} (+)",
-            total_insertions
-        )?;
-        writeln!(
-            &mut writer,
-            "  Total Deletions     : {} (-)",
-            total_deletions
-        )?;
-        writeln!(&mut writer, "  Average Latency     : {}", formatted_avg)?;
-        writeln!(&mut writer, "  Maximum Latency     : {}", formatted_max)?;
     } else {
         loop {
             line += 1;
@@ -375,7 +403,7 @@ mod tests {
 
         let mut input = line.as_bytes();
         let mut output = Vec::new();
-        get_snapshot_metrics(&mut input, &mut output, true).unwrap();
+        get_snapshot_metrics(&mut input, &mut output, true, false).unwrap();
         let output_str = String::from_utf8(output).unwrap();
 
         assert!(output_str.contains("Date/Time"));
@@ -386,5 +414,29 @@ mod tests {
         assert!(output_str.contains("3423d21"));
         assert!(output_str.contains("Summary:"));
         assert!(output_str.contains("Total Snapshots     : 1"));
+
+        // Verify summary is at the bottom (after the snapshot output)
+        let summary_idx = output_str.find("Summary:").unwrap();
+        let date_time_idx = output_str.find("Date/Time").unwrap();
+        assert!(summary_idx > date_time_idx);
+    }
+
+    #[test]
+    fn test_human_readable_output_summary_at_top() {
+        use crate::metrics::get_snapshot_metrics;
+        let line = r#"{"target":"endur::poller","file":"src/poller.rs","name":"event src/poller.rs:70","level":"Level(Info)","fields":{"message":"info_operation","operation":{"Snapshot":{"error":null,"latency":0.00988253,"op":{"base_hash":"3e8e8c99b5434e726b13f56ba00d139bab57d5eb","commit_hash":"3423d21a2937d95119982395bc1281d3d8ebe3b6","endur_branch":"endur/3e8e8c99b5434e726b13f56ba00d139bab57d5eb"},"repo":"../.."}}},"time":"2022-01-14T01:49:51.638031+00:00"}"#;
+
+        let mut input = line.as_bytes();
+        let mut output = Vec::new();
+        get_snapshot_metrics(&mut input, &mut output, true, true).unwrap();
+        let output_str = String::from_utf8(output).unwrap();
+
+        assert!(output_str.contains("Summary:"));
+        assert!(output_str.contains("Date/Time"));
+
+        // Verify summary is at the top (before the table)
+        let summary_idx = output_str.find("Summary:").unwrap();
+        let date_time_idx = output_str.find("Date/Time").unwrap();
+        assert!(summary_idx < date_time_idx);
     }
 }

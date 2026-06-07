@@ -176,7 +176,10 @@ pub async fn toggle_watch_repo(path: String, watch: bool) -> Result<(), String> 
 }
 
 #[tauri::command]
-pub fn get_snapshots(repo_path: String, show_all: Option<bool>) -> Result<Vec<SnapshotInfo>, String> {
+pub fn get_snapshots(
+    repo_path: String,
+    show_all: Option<bool>,
+) -> Result<Vec<SnapshotInfo>, String> {
     let path = Path::new(&repo_path);
     snapshots::list_snapshots(path, show_all.unwrap_or(false)).map_err(|e| e.to_string())
 }
@@ -210,7 +213,7 @@ pub fn get_metrics_summary(human_readable: bool) -> Result<String, String> {
     }
     let mut file = std::fs::File::open(log_path).map_err(|e| e.to_string())?;
     let mut output = Vec::new();
-    endur::metrics::get_snapshot_metrics(&mut file, &mut output, human_readable)
+    endur::metrics::get_snapshot_metrics(&mut file, &mut output, human_readable, true)
         .map_err(|e| e.to_string())?;
     Ok(String::from_utf8_lossy(&output).into_owned())
 }

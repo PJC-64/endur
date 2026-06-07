@@ -719,7 +719,7 @@ impl ControlCenterState {
         let log_path = crate::database::RuntimeLock::get_endur_cache_home().join("endur.log");
         if let Ok(mut file) = std::fs::File::open(&log_path) {
             let mut output = Vec::new();
-            if crate::metrics::get_snapshot_metrics(&mut file, &mut output, true).is_ok() {
+            if crate::metrics::get_snapshot_metrics(&mut file, &mut output, true, true).is_ok() {
                 if let Ok(s) = String::from_utf8(output) {
                     self.metrics_text = s;
                     return;
