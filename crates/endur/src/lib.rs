@@ -13,4 +13,3 @@ pub mod tui;
 pub mod watcher;
 
 pub const VERSION: &str = env!("CARGO_PKG_VERSION");
-
