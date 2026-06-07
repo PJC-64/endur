@@ -42,7 +42,7 @@ pub async fn get_daemon_status() -> Result<DaemonStatus, String> {
         pid: if is_running { lock.pid } else { None },
         uptime_secs,
         version,
-        client_version: env!("CARGO_PKG_VERSION").to_string(),
+        client_version: endur::VERSION.to_string(),
     })
 }
 
