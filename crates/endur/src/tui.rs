@@ -745,7 +745,7 @@ impl ControlCenterState {
     }
 }
 
-fn format_log_line(line: &str) -> Option<String> {
+pub fn format_log_line(line: &str) -> Option<String> {
     let json: serde_json::Value = match serde_json::from_str(line) {
         Ok(v) => v,
         Err(_) => return Some(line.to_string()),

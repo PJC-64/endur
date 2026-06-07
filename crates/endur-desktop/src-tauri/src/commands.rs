@@ -141,9 +141,18 @@ pub fn get_log_tail(lines: usize) -> Result<String, String> {
         return Ok("No logs recorded yet.".to_string());
     }
     let content = std::fs::read_to_string(log_path).map_err(|e| e.to_string())?;
-    let tail: Vec<&str> = content.lines().rev().take(lines).collect();
-    let tail_joined: Vec<String> = tail.into_iter().rev().map(|s| s.to_string()).collect();
-    Ok(tail_joined.join("\n"))
+    
+    let mut formatted_lines = Vec::new();
+    for line in content.lines().rev() {
+        if let Some(formatted) = endur::tui::format_log_line(line) {
+            formatted_lines.push(formatted);
+            if formatted_lines.len() >= lines {
+                break;
+            }
+        }
+    }
+    formatted_lines.reverse();
+    Ok(formatted_lines.join("\n"))
 }
 
 #[tauri::command]
