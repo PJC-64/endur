@@ -3,6 +3,7 @@ use serde::{Deserialize, Serialize};
 use std::fmt;
 use std::path::Path;
 
+use crate::cache;
 use crate::config::Config;
 
 #[derive(Debug, Serialize, Deserialize, Eq, PartialEq)]
@@ -42,8 +43,7 @@ pub fn capture(path: &Path) -> Result<Option<CaptureStatus>, Error> {
             match branch.get().peel_to_commit() {
                 Ok(commit) if commit.id() != head.id() => Some(commit),
                 _ => {
-                    // Endur branch exists but no commit is made by endur
-                    // So we clean this branch
+                    // Endur branch exists but no endur commit on it – clean up.
                     branch.delete()?;
                     None
                 }
@@ -86,11 +86,30 @@ pub fn capture(path: &Path) -> Result<Option<CaptureStatus>, Error> {
         &[parent_commit],
     )?;
 
-    Ok(Some(CaptureStatus {
+    let files_changed = dirty_diff.deltas().len();
+    let status = CaptureStatus {
         endur_branch: branch_name,
         commit_hash: oid.to_string(),
         base_hash: head.id().to_string(),
-    }))
+    };
+
+    // Keep the SQLite cache warm: insert the freshly-created snapshot.
+    let snap_ts = repo
+        .find_commit(oid)
+        .map(|c| c.time().seconds())
+        .unwrap_or(0);
+    let new_snap = SnapshotInfo {
+        commit_hash: status.commit_hash.clone(),
+        base_hash: status.base_hash.clone(),
+        timestamp: snap_ts,
+        message: message.to_string(),
+        files_changed,
+    };
+    if let Some(conn) = cache::open() {
+        cache::upsert_snapshots(&conn, path, &[new_snap]);
+    }
+
+    Ok(Some(status))
 }
 
 fn get_git_author(repo: &Repository) -> String {
@@ -136,7 +155,11 @@ pub struct SnapshotInfo {
     pub files_changed: usize,
 }
 
-pub fn list_snapshots(path: &Path) -> Result<Vec<SnapshotInfo>, Error> {
+/// Walk all `endur/*` branches and collect snapshot commits directly from Git.
+///
+/// This is the authoritative (slow) path used to populate the cache on first
+/// call.  Results are sorted newest-first.
+fn walk_git_snapshots(path: &Path) -> Result<Vec<SnapshotInfo>, Error> {
     let repo = Repository::open(path)?;
     let mut snapshots = Vec::new();
 
@@ -192,6 +215,63 @@ pub fn list_snapshots(path: &Path) -> Result<Vec<SnapshotInfo>, Error> {
 
     // Sort by timestamp descending
     snapshots.sort_by_key(|s| std::cmp::Reverse(s.timestamp));
+    Ok(snapshots)
+}
+
+/// List snapshots for the repository at `path`.
+///
+/// # Parameters
+/// * `path`     – Path to the Git repository root.
+/// * `show_all` – When `false` (the default), only snapshots taken **after**
+///   the most recent formal commit are returned (i.e. `base_hash == HEAD`).
+///   When `true`, all historical Endur snapshots are returned.
+///
+/// Results are served from the SQLite cache when available; on a cold start
+/// the cache is transparently populated from a full Git history walk.
+pub fn list_snapshots(path: &Path, show_all: bool) -> Result<Vec<SnapshotInfo>, Error> {
+    // Determine the current HEAD hash for filtering.
+    let head_hash: Option<String> = {
+        let repo = Repository::open(path).ok();
+        repo.and_then(|r| {
+            r.head()
+                .ok()
+                .and_then(|h| h.peel_to_commit().ok())
+                .map(|c| c.id().to_string())
+        })
+    };
+
+    // Try the SQLite cache first.
+    let cached = if let Some(conn) = cache::open() {
+        if cache::has_entries(&conn, path) {
+            // Cache hit – fast path.
+            cache::get_snapshots(&conn, path)
+        } else {
+            // Cache cold – full Git walk then populate.
+            match walk_git_snapshots(path) {
+                Ok(snaps) => {
+                    cache::upsert_snapshots(&conn, path, &snaps);
+                    Some(snaps)
+                }
+                Err(e) => return Err(e),
+            }
+        }
+    } else {
+        None
+    };
+
+    // Transparent fallback when the cache is unavailable.
+    let mut snapshots = match cached {
+        Some(s) => s,
+        None => walk_git_snapshots(path)?,
+    };
+
+    // Apply HEAD filter unless show_all was requested.
+    if !show_all {
+        if let Some(ref head) = head_hash {
+            snapshots.retain(|s| &s.base_hash == head);
+        }
+    }
+
     Ok(snapshots)
 }
 

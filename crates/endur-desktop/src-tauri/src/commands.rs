@@ -176,9 +176,9 @@ pub async fn toggle_watch_repo(path: String, watch: bool) -> Result<(), String> 
 }
 
 #[tauri::command]
-pub fn get_snapshots(repo_path: String) -> Result<Vec<SnapshotInfo>, String> {
+pub fn get_snapshots(repo_path: String, show_all: Option<bool>) -> Result<Vec<SnapshotInfo>, String> {
     let path = Path::new(&repo_path);
-    snapshots::list_snapshots(path).map_err(|e| e.to_string())
+    snapshots::list_snapshots(path, show_all.unwrap_or(false)).map_err(|e| e.to_string())
 }
 
 #[tauri::command]

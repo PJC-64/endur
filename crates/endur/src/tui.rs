@@ -60,6 +60,8 @@ pub struct TuiState {
     pub selected_files: std::collections::HashSet<String>,
     pub focus: Focus,
     pub in_repo_select: bool,
+    /// When false (default), only show snapshots after the current HEAD commit.
+    pub show_all_snapshots: bool,
 }
 
 impl TuiState {
@@ -79,6 +81,7 @@ impl TuiState {
             selected_files: std::collections::HashSet::new(),
             focus: Focus::Repos,
             in_repo_select: true,
+            show_all_snapshots: false,
         };
         state.reload_snapshots();
         state
@@ -100,7 +103,8 @@ impl TuiState {
         if let Some(idx) = self.selected_repo_idx() {
             if idx < self.repos.len() {
                 let path = &self.repos[idx];
-                self.snapshots = snapshots::list_snapshots(path).unwrap_or_default();
+                self.snapshots =
+                    snapshots::list_snapshots(path, self.show_all_snapshots).unwrap_or_default();
                 if !self.snapshots.is_empty() {
                     self.snap_state.select(Some(0));
                 } else {
@@ -406,7 +410,11 @@ pub fn run_interactive(
                             .borders(Borders::ALL)
                             .border_type(BorderType::Rounded)
                             .border_style(Style::default().fg(snap_border_color))
-                            .title(" Backups "),
+                            .title(if state.show_all_snapshots {
+                                " Backups [All] "
+                            } else {
+                                " Backups [Since HEAD] "
+                            }),
                     )
                     .highlight_style(
                         Style::default()
@@ -477,8 +485,8 @@ pub fn run_interactive(
             // Footer instructions
             let help_text = match state.focus {
                 Focus::Repos => " [Enter] Select Repo  |  [↑/↓] Navigate  |  [Esc/q] Exit",
-                Focus::Snapshots => " [Enter] Restore Full Snapshot  |  [Esc/Backspace] Back to Repos  |  [Right/Tab] View Files  |  [↑/↓] Navigate",
-                Focus::Files => " [Space] Toggle Select File  |  [Enter] Restore Selected Files  |  [Esc/Backspace/Left] Back to Backups  |  [↑/↓] Navigate",
+                Focus::Snapshots => " [Enter] Restore Full  |  [A] Toggle All/HEAD  |  [Esc] Back  |  [Right/Tab] Files  |  [↑/↓] Nav",
+                Focus::Files => " [Space] Toggle Select  |  [Enter] Restore Selected  |  [Esc/Left] Back  |  [↑/↓] Nav",
             };
             let footer = Paragraph::new(help_text)
                 .style(Style::default().fg(Color::Gray))
@@ -616,6 +624,12 @@ pub fn run_interactive(
                                 }
                             }
                         },
+                        KeyCode::Char('a') | KeyCode::Char('A')
+                            if state.focus == Focus::Snapshots =>
+                        {
+                            state.show_all_snapshots = !state.show_all_snapshots;
+                            state.reload_snapshots();
+                        }
                         _ => {}
                     }
                 }

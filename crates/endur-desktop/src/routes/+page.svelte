@@ -24,6 +24,7 @@
   let selectedFileForDiff = $state("");
   let backupMessage = $state("");
   let backupError = $state("");
+  let showAllSnapshots = $state(false);
 
   // Metrics State
   let metricsText = $state("");
@@ -110,7 +111,7 @@
   async function loadSnapshots() {
     if (!selectedRepo) return;
     try {
-      snapshots = await invoke("get_snapshots", { repoPath: selectedRepo });
+      snapshots = await invoke("get_snapshots", { repoPath: selectedRepo, showAll: showAllSnapshots });
       selectedSnapshot = null;
       snapshotFiles = [];
       activeFileDiff = "";
@@ -118,6 +119,11 @@
     } catch (e) {
       console.error("Failed to load snapshots", e);
     }
+  }
+
+  async function toggleSnapshotFilter() {
+    showAllSnapshots = !showAllSnapshots;
+    await loadSnapshots();
   }
 
   async function selectSnapshot(snap: any) {
@@ -453,12 +459,22 @@
           <!-- Repo Selector & Snapshots Column (Left) -->
           <div class="pane-column snapshots-pane card glass">
             <div class="pane-header">
-              <h3>Snapshots</h3>
-              <select bind:value={selectedRepo} onchange={loadSnapshots} class="repo-select">
-                {#each watchedRepos as path}
-                  <option value={path}>{path.split('/').pop() || path}</option>
-                {/each}
-              </select>
+              <h3>Snapshots {showAllSnapshots ? '(All)' : '(Since HEAD)'}</h3>
+              <div class="pane-header-controls">
+                <button
+                  class="filter-toggle-btn"
+                  class:active={showAllSnapshots}
+                  onclick={toggleSnapshotFilter}
+                  title={showAllSnapshots ? 'Showing all snapshots — click to show only current HEAD' : 'Showing snapshots since last commit — click to show all'}
+                >
+                  {showAllSnapshots ? '🕰 All' : '📌 HEAD'}
+                </button>
+                <select bind:value={selectedRepo} onchange={loadSnapshots} class="repo-select">
+                  {#each watchedRepos as path}
+                    <option value={path}>{path.split('/').pop() || path}</option>
+                  {/each}
+                </select>
+              </div>
             </div>
             
             {#if snapshots.length === 0}
@@ -1055,6 +1071,39 @@
     padding: 0.4rem;
     border-radius: 4px;
     outline: none;
+  }
+
+  .pane-header-controls {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    flex-wrap: nowrap;
+  }
+
+  .filter-toggle-btn {
+    flex-shrink: 0;
+    background: rgba(255, 255, 255, 0.05);
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    border-radius: 6px;
+    color: #94a3b8;
+    font-size: 0.75rem;
+    font-weight: 500;
+    padding: 0.3rem 0.6rem;
+    cursor: pointer;
+    transition: background 0.15s, color 0.15s, border-color 0.15s;
+    white-space: nowrap;
+  }
+
+  .filter-toggle-btn:hover {
+    background: rgba(99, 102, 241, 0.15);
+    border-color: rgba(99, 102, 241, 0.4);
+    color: #c7d2fe;
+  }
+
+  .filter-toggle-btn.active {
+    background: rgba(99, 102, 241, 0.25);
+    border-color: rgba(99, 102, 241, 0.6);
+    color: #a5b4fc;
   }
 
   .snapshots-list, .files-list {

@@ -151,6 +151,10 @@ async fn main() {
             Command::new("list-snapshots")
                 .about("List all local endur backup snapshots.")
                 .arg(arg_directory.clone())
+                .arg(
+                    arg!(--all "Show all historical snapshots, not just those after the latest commit")
+                        .action(clap::builder::ArgAction::SetTrue)
+                )
         )
         .subcommand(
             Command::new("restore")
@@ -336,7 +340,8 @@ async fn main() {
         }
         Some(("list-snapshots", arg_matches)) => {
             let dir = Path::new(arg_matches.get_one::<String>("directory").unwrap());
-            match snapshots::list_snapshots(dir) {
+            let show_all = arg_matches.get_flag("all");
+            match snapshots::list_snapshots(dir, show_all) {
                 Ok(snapshots) => {
                     if snapshots.is_empty() {
                         println!("No snapshots found in repository: {}", dir.display());
