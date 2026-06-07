@@ -289,7 +289,24 @@ async fn main() {
                         process::exit(1);
                     }
                 },
-                None => Box::new(BufReader::new(stdin())),
+                None => {
+                    use std::io::IsTerminal;
+                    if std::io::stdin().is_terminal() {
+                        let log_path = RuntimeLock::get_endur_cache_home().join("endur.log");
+                        match File::open(&log_path) {
+                            Ok(file) => Box::new(BufReader::new(file)),
+                            Err(e) => {
+                                eprintln!(
+                                    "Couldn't open default log file '{}': {e}",
+                                    log_path.display()
+                                );
+                                process::exit(1);
+                            }
+                        }
+                    } else {
+                        Box::new(BufReader::new(stdin()))
+                    }
+                }
             };
             let mut output: Box<dyn Write> = match arg_matches.get_one::<String>("output") {
                 Some(output) => match File::create(output) {
