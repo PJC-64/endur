@@ -197,7 +197,7 @@ nix develop github:PJC-64/endur
 
 ### Is this stable?
 
-Yes. Lots of people have been using it since 2022-01-01 without issue. It uses [libgit2](https://libgit2.org/) to make the commits, so it's fairly battle hardened.
+Yes. Lots of people have been using the original dura since 2022 without issue, and this fork has changed no core elements of the backing logic. It uses [libgit2](https://libgit2.org/) to make the commits, so it's fairly battle hardened.
 
 ### How often does this check for changes?
 
