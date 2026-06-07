@@ -277,6 +277,9 @@
         <span class="dot"></span>
         <span class="status-text">{daemonStatus.running ? "Daemon Active" : "Daemon Inactive"}</span>
       </div>
+      <div class="attribution-note">
+        This fork brought to you by <a href="https://github.com/PJC-64" target="_blank" rel="noopener noreferrer">PJC-64</a>, original 'dura' by <a href="https://github.com/tkellogg" target="_blank" rel="noopener noreferrer">Tim Kellogg</a>
+      </div>
     </div>
   </aside>
 
@@ -597,6 +600,24 @@
   .status-footer {
     padding-top: 1rem;
     border-top: 1px solid rgba(255, 255, 255, 0.05);
+  }
+
+  .attribution-note {
+    margin-top: 0.75rem;
+    font-size: 0.7rem;
+    line-height: 1.35;
+    color: rgba(148, 163, 184, 0.45);
+  }
+
+  .attribution-note a {
+    color: rgba(6, 182, 212, 0.6);
+    text-decoration: none;
+    transition: color 0.15s ease;
+  }
+
+  .attribution-note a:hover {
+    color: #06b6d4;
+    text-decoration: underline;
   }
 
   .status-indicator {

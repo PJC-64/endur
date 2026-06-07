@@ -204,7 +204,7 @@ Yes. Lots of people have been using it since 2022-01-01 without issue. It uses [
 Endur uses event-driven file monitoring (`notify` crate) to listen for filesystem events. It captures changes immediately after they occur, with a 500ms debounce delay to combine rapid consecutive writes into a single snapshot.
 
 
-Brought to you by <a rel="nofollow me" href="https://hachyderm.io/@kellogh">Tim Kellogg</a>.
+This fork brought to you by [PJC-64](https://github.com/PJC-64), original 'dura' by [Tim Kellogg](https://github.com/tkellogg).
 
 
 [build badge]: https://github.com/PJC-64/endur/actions/workflows/build.yaml/badge.svg
