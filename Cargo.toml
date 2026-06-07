@@ -1,6 +1,6 @@
 [package]
 name = "endur"
-version = "1.0.5"
+version = "1.0.6-dev1"
 edition = "2021"
 authors = ["Tim Kellogg and the Internet"]
 description = "Endur backs up your work automatically via Git commits."
@@ -10,11 +10,11 @@ repository = "https://github.com/PJC-64/endur/"
 documentation = "https://github.com/PJC-64/endur/blob/main/README.md"
 
 [dependencies]
-anyhow = "1.0.66"
+anyhow = "1.0"
 clap = { version = "4.0", features = ["cargo", "string"] }
 git2 = "0.20"
 hdrhistogram = "7.5.2"
-dirs = "4.0.0"
+dirs = "6.0.0"
 tokio = { version = "1", features = ["full"] }
 serde = { version = "1.0", features = ["derive", "rc"] }
 serde_json = "1.0"
@@ -22,17 +22,17 @@ chrono = "0.4"
 toml = "0.5.8"
 tracing = { version = "0.1.5"}
 tracing-subscriber = { version = "0.3", features = ["env-filter", "registry"] }
-walkdir = "2.3.2"
+walkdir = "2.5.0"
 sudo = "0.6.0"
 notify = "6.1.1"
-ignore = "0.4.20"
+ignore = "0.4.26"
 fs2 = "0.4.3"
 ratatui = "0.30.0"
 
 
 [dev-dependencies]
-tempfile = "3.2.0"
-serial_test = "0.9.0"
+tempfile = "3.27.0"
+serial_test = "3.5.0"
 
 [target.'cfg(windows)'.dependencies]
 uds_windows = "1.2.1"
