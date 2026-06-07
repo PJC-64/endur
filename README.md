@@ -29,6 +29,7 @@ Compared to the upstream `dura` repository, **Endur** adds the following feature
 7. **System Startup Service Subcommands**: Exposes `endur service install` and `endur service uninstall` to register the daemon as a system service automatically (`launchd` on macOS, `systemd` on Linux).
 8. **Configurable Log Redirection**: The `endur serve` daemon runs completely silently, logging only to a configurable file path (defaults to `~/.cache/endur/endur.log`).
 9. **Metrics Scraping & Performance Analysis**: Exposes an `endur metrics` subcommand that parses log files to compute backup frequency, snapshot latency, and repository sizes. Supports both raw JSON output and a clean formatted table (`-h/--human-readable`). Checks `stdin` to prevent interactive hangs, automatically falling back to cached log paths when run on a TTY.
+10. **Native Desktop GUI Application (v1.1.0)**: Structured the project as a Cargo workspace to support a native cross-platform GUI client (`crates/endur-desktop`) built on Tauri 2.0 and Svelte 5. It packages native desktop installers (macOS DMG, Windows MSI/EXE, Linux DEB/AppImage) and implements a hybrid daemon resolver to integrate seamlessly with the existing CLI/TUI core.
 
 ## Documentation
 
