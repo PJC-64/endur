@@ -16,27 +16,57 @@ Endur is a background daemon that monitors your active Git repositories and auto
 
 ## Installation
 
-### Prerequisite: Rust and Cargo
+### Prerequisite: Rust and Cargo (For CLI/TUI)
 Ensure you have the Rust toolchain installed:
 ```bash
 curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
 ```
 
-### Install via Cargo (crates.io)
+### Install CLI/TUI via Cargo (crates.io)
 You can install the published crate directly from crates.io:
 ```bash
 cargo install endur
 ```
 
-### Build from Source
+### Build CLI/TUI from Source
 From the `endur` directory:
 ```bash
 cargo install --path .
 ```
-
 This compiles the release binary and installs it to your local Cargo bin directory (usually `~/.cargo/bin`). Make sure this directory is in your `$PATH`.
 
+### Install Endur Desktop GUI (macOS, Windows, Linux)
+For users who prefer a graphical interface, Endur provides a native cross-platform desktop application:
+*   **macOS**: Packaged inside a `.dmg` installer.
+*   **Windows**: Packaged as a `.msi` or `.exe` installer.
+*   **Linux**: Packaged as a `.deb` package or standalone `.AppImage`.
+
+Simply download the appropriate installer from the [GitHub Releases page](https://github.com/PJC-64/endur/releases), run the installer to set up the GUI app, and launch it from your applications menu.
+
 ---
+
+## Endur Desktop GUI Application
+
+The Endur Desktop App is built on **Tauri 2.0** and **Svelte 5** to expose the same backup engine and daemon metrics as the CLI, but in a premium, glassmorphic graphical dashboard.
+
+### Key Features
+1. **Interactive Daemon Controller**: One-click launch, restart, and termination of the background daemon with live status badges (Active/Inactive), Process ID display, and real-time uptime calculations.
+2. **Watchlist Management**: Add or remove Git repositories from the watch list using a text input field, showing paths in a clean scrollable directory view.
+3. **Recovery Pane (Side-by-Side Diff Preview)**:
+   * Select a repository and browse its historical snapshots.
+   * Inspect the exact list of modified files recorded in each snapshot.
+   * View full side-by-side git patch diff previews with insertions and deletions highlighted.
+   * Select specific files via checkboxes to run a **discrete restore**, or click **Restore All** to revert the entire repository state.
+4. **Performance Analytics Tab**: Displays real-time metrics, average/maximum backup latency stats, and snapshot throughput tables directly inside the app window.
+5. **Live Log Console**: Streams human-readable background daemon logs in real-time, matching the filtering rules of the CLI Control Center (filtering out redundant check loops to prevent clutter).
+
+### Under the Hood: Hybrid Daemon Resolution
+To avoid software conflicts and duplicate processes, the GUI implements a **hybrid daemon resolver**:
+1. **Existing Daemon Check**: When starting the daemon, the GUI checks if a global `endur` CLI daemon is already installed (`~/.cargo/bin/endur` or in PATH). If present, the GUI binds to and controls that CLI daemon.
+2. **Bundled Daemon Fallback**: If no global CLI daemon is found, the GUI starts its own bundled `endur` core engine. Both engines share the same cache directory (`~/.cache/endur`), ensuring that command-line tools, statuslines, and GUI views remain completely synchronized.
+
+---
+
 
 ## Command Reference
 

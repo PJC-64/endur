@@ -85,6 +85,22 @@ graph TD
 *   **macOS (`launchctl` Integration)**: Creates `~/Library/LaunchAgents/com.endur.daemon.plist` configured to run `endur serve` in the background, and registers it using the modern `launchctl bootstrap` framework (falling back to `launchctl load` if necessary).
 *   **Linux (`systemd` Integration)**: Configures a systemd user unit at `~/.config/systemd/user/endur.service` and executes systemd commands to daemon-reload, enable, and start/stop the service.
 
+### 9. Desktop GUI Application ([crates/endur-desktop](file:///Users/pjc/Development/endur/crates/endur-desktop))
+
+The Desktop GUI is structured as a **Cargo Workspace** member separate from the core `endur` library to ensure independent versioning and lean dependencies.
+
+*   **Tauri 2.0 Backend (`crates/endur-desktop/src-tauri`)**:
+    *   **IPC Commands (`src-tauri/src/commands.rs`)**: Exposes Tauri command endpoints (e.g. `get_daemon_status`, `control_daemon`, `get_watched_repositories`, `toggle_watch_repo`, `get_snapshots`, `get_snapshot_files`, `get_snapshot_diff`, `restore_files`, `get_metrics_summary`, `get_log_tail`) that translate IPC calls into calls to the core `endur` library APIs.
+    *   **Core Integration**: Directly links the local `endur` crate path dependency, sharing the same `RuntimeLock`, `Config`, `poller`, and `snapshots` modules.
+    *   **Shared Log Formatting**: Uses the public `format_log_line` API from `endur::tui` to parse and filter daemon logs into clean, human-readable lines before returning them to the UI.
+*   **Svelte 5 Frontend (`crates/endur-desktop/src`)**:
+    *   **SPA Structure (`src/routes/+page.svelte`)**: Fully interactive Single Page App styled with a premium glassmorphic dark-theme palette using modern CSS variables, scrollbars, and active status animations.
+    *   **IPC Bridge**: Communicates with the Rust backend using Tauri's `invoke` API.
+    *   **Log Polling Loop**: Uses a 1.5s interval to pull daemon logs from `get_log_tail` and refresh the live log panel.
+*   **CI/CD Release Packaging (`.github/workflows/release-desktop.yaml`)**:
+    *   Runs on tag pushes matching `desktop-v*` or manual workflow runs.
+    *   Builds Node dependencies, compiles the Rust backend, and uses `tauri-apps/tauri-action` to compile and bundle native installers: macOS DMG, Windows MSI/EXE, and Linux DEB/AppImage.
+
 ---
 
 ## Development & Testing Workflow
