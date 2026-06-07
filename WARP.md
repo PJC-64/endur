@@ -41,6 +41,10 @@ endur kill
 # Capture a single snapshot
 endur capture [directory]
 
+# List snapshots (only since last commit by default, or all history)
+endur list-snapshots [directory]
+endur list-snapshots [directory] --all
+
 # View configuration and status
 endur info
 endur info --detail
@@ -70,6 +74,14 @@ nix develop github:PJC-64/endur
 - Uses libgit2 to stage all changes (tracked and untracked)
 - Only commits if there are actual changes detected
 - Returns `CaptureStatus` with branch name, commit hash, and base hash
+- Uses SQLite metadata caching for fast querying and supports filtering based on the current HEAD commit
+
+**Metadata Cache (`cache.rs`)**
+- Caches snapshot metadata at `~/.cache/endur/snapshot_cache.db`
+- Opens in WAL (Write-Ahead Logging) mode to handle concurrent client reads
+- Gracefully falls back to manual Git logs if the DB is missing, locked, or corrupt
+- Keeps cache warm: automatically updates/inserts on new backup captures
+
 
 **Configuration (`config.rs`)**
 - Stored in `~/.config/endur/config.toml` (or `$ENDUR_CONFIG_HOME/config.toml`)

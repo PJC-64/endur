@@ -11,6 +11,7 @@ Endur is a background daemon that monitors your active Git repositories and auto
 3. **Smart Git Filtering**: Respects your `.gitignore` rules and ignores the `.git/` folder automatically.
 4. **Zero-Side-Effects Staging**: Uses an isolated index (`.git/endur_index`) so your primary Git index (`git status` and staging) is never touched during backups.
 5. **Built-in CLI Recovery**: Restore files directly using native CLI recovery commands without writing complex Git plumbing commands.
+6. **SQLite Metadata Cache**: Snapshot metadata is cached in `~/.cache/endur/snapshot_cache.db` for fast lookups. The cache is kept warm on every backup and falls back silently to a raw Git walk if missing or corrupt.
 
 ---
 
@@ -53,7 +54,7 @@ The Endur Desktop App is built on **Tauri 2.0** and **Svelte 5** to expose the s
 1. **Interactive Daemon Controller**: One-click launch, restart, and termination of the background daemon with live status badges (Active/Inactive), Process ID display, and real-time uptime calculations.
 2. **Watchlist Management**: Add or remove Git repositories from the watch list using a text input field, showing paths in a clean scrollable directory view.
 3. **Recovery Pane (Side-by-Side Diff Preview)**:
-   * Select a repository and browse its historical snapshots.
+   * Select a repository and browse its snapshots. By default, only snapshots taken **since your last formal Git commit** are shown, keeping the list focused on your current work-in-progress. Click the **📌 HEAD / 🕰 All** toggle button to switch between the filtered and full-history views.
    * Inspect the exact list of modified files recorded in each snapshot.
    * View full side-by-side git patch diff previews with insertions and deletions highlighted.
    * Select specific files via checkboxes to run a **discrete restore**, or click **Restore All** to revert the entire repository state.
@@ -181,10 +182,18 @@ endur metrics
 When you modify files, Endur instantly commits changes to a branch specific to your current HEAD commit. If your current HEAD is `a1b2c3d...`, Endur commits to a local branch named `endur/a1b2c3d...`.
 
 ### Listing Snapshots
-To see all local backup snapshots for your repository, run:
+To see backup snapshots for your repository, run:
 ```bash
 endur list-snapshots
 ```
+
+By default, Endur only shows snapshots taken **after your most recent formal Git commit** — that is, the work-in-progress you haven't committed yet. This keeps the list short and immediately relevant.
+
+To see every snapshot Endur has ever recorded for this repository:
+```bash
+endur list-snapshots --all
+```
+
 Example Output:
 ```
 Endur Snapshots for repository: /Users/pjc/Development/project
@@ -217,8 +226,9 @@ This launches an interactive Terminal User Interface (TUI) with a multi-step sel
    * Use `Up` / `Down` to navigate the list of watched repositories on the left. A preview of backups is shown on the right.
    * Press `Enter` (or `Right`/`Tab`) to select the highlighted repository. This transitions to the Snapshot view.
 2. **Backup/Snapshot Selection**:
-   * The left pane now shows the list of snapshots/backups for the selected repository. The right pane displays a preview of modified files in the highlighted snapshot.
+   * The left pane now shows the list of snapshots/backups for the selected repository (filtered to **since the last HEAD commit** by default). The right pane displays a preview of modified files in the highlighted snapshot.
    * Use `Up` / `Down` to navigate snapshots.
+   * Press `A` to toggle between **Since HEAD** (default) and **All** historical snapshots. The panel title updates to reflect the active filter.
    * Press `Enter` to restore the **entire** highlighted snapshot.
    * Press `Esc` or `Backspace` or `Left` to go back to the Repository Selection screen.
    * Press `Right` (or `Tab`) to switch focus to the **Changed Files** list on the right.
@@ -342,12 +352,13 @@ Options:
 ```text
 List all local endur backup snapshots.
 
-Usage: endur list-snapshots [directory]
+Usage: endur list-snapshots [OPTIONS] [directory]
 
 Arguments:
-  [directory]  The directory to watch. Defaults to current directory
+  [directory]  The directory to inspect. Defaults to current directory
 
 Options:
+  -a, --all   Show all snapshots, including those predating the current HEAD commit
   -h, --help  Print help
 ```
 

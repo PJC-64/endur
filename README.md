@@ -23,13 +23,14 @@ Compared to the upstream `dura` repository, **Endur** adds the following feature
 4. **Git-Aware Filtering**: Automatically respects `.gitignore` rules and ignores the `.git/` folder, reducing disk write and commit activity.
 5. **Discrete Path Restore**: Allows you to restore only specific files or folders from a backup snapshot (e.g. `endur restore <hash> --files path/to/file`) instead of checking out the entire repository tree.
 6. **Built-in CLI Recovery & Interactive TUIs**:
-   * `endur list-snapshots`: Lists all snapshots with files changed and date/time.
+   * `endur list-snapshots`: Lists snapshots since the last formal commit by default; pass `--all` to see the full history.
    * `endur restore -i`: Visual Terminal User Interface (TUI) powered by `ratatui` to browse repositories, drill down into snapshots, preview modified files, and selectively restore files using interactive checkboxes (`Space` to toggle, `Enter` to restore).
    * `endur tui`: A comprehensive Control Center TUI to monitor background daemon status, manage watched repositories, inspect live logs, and view performance metrics.
 7. **System Startup Service Subcommands**: Exposes `endur service install` and `endur service uninstall` to register the daemon as a system service automatically (`launchd` on macOS, `systemd` on Linux).
 8. **Configurable Log Redirection**: The `endur serve` daemon runs completely silently, logging only to a configurable file path (defaults to `~/.cache/endur/endur.log`).
 9. **Metrics Scraping & Performance Analysis**: Exposes an `endur metrics` subcommand that parses log files to compute backup frequency, snapshot latency, and repository sizes. Supports both raw JSON output and a clean formatted table (`-h/--human-readable`). Checks `stdin` to prevent interactive hangs, automatically falling back to cached log paths when run on a TTY.
-10. **Native Desktop GUI Application (v1.1.0)**: Structured the project as a Cargo workspace to support a native cross-platform GUI client (`crates/endur-desktop`) built on Tauri 2.0 and Svelte 5. It packages native desktop installers (macOS DMG, Windows MSI/EXE, Linux DEB/AppImage) and implements a hybrid daemon resolver to integrate seamlessly with the existing CLI/TUI core.
+10. **SQLite Metadata Cache**: Snapshot metadata is transparently cached in a SQLite database (`~/.cache/endur/snapshot_cache.db`). This dramatically speeds up `list-snapshots`, the TUI, and the GUI on large repositories. The cache is kept warm automatically on every backup and gracefully falls back to a raw Git history walk if the database file is missing or corrupt.
+11. **Native Desktop GUI Application (v1.1.0)**: Structured the project as a Cargo workspace to support a native cross-platform GUI client (`crates/endur-desktop`) built on Tauri 2.0 and Svelte 5. It packages native desktop installers (macOS DMG, Windows MSI/EXE, Linux DEB/AppImage) and implements a hybrid daemon resolver to integrate seamlessly with the existing CLI/TUI core.
 
 ## Documentation
 
@@ -85,11 +86,14 @@ process that it should exit if there is a `serve` process running.
 
 Endur now provides built-in recovery subcommands:
 
-1. **List all snapshots**:
+1. **List snapshots since your last commit** (default — most relevant):
    ```bash
    $ endur list-snapshots
    ```
-   This displays all snapshots in the repository with their timestamps and files changed.
+   By default this shows only snapshots taken *after* your most recent formal Git commit (i.e. work-in-progress you haven't committed yet). To see the full historical archive:
+   ```bash
+   $ endur list-snapshots --all
+   ```
 
 2. **Restore files from a snapshot**:
    *   To restore the entire repository state:

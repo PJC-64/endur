@@ -66,12 +66,22 @@ graph TD
 *   **Graceful Exit Actions**: When a shutdown signal is received, the loop sends a broadcast termination signal to UDS socket handlers, clears the `RuntimeLock` PID metadata value back to `None`, and exits cleanly.
 *   **Optimization**: Debouncing prevents multiple rapid writes (e.g., compilation artifacts or quick editor saves) from creating dozens of intermediate commits.
 
-### 6. Isolated Snapshot Capture ([src/snapshots.rs](file:///Users/pjc/Development/endur/src/snapshots.rs))
+### 6. Isolated Snapshot Capture & SQLite Caching ([src/snapshots.rs](file:///Users/pjc/Development/endur/crates/endur/src/snapshots.rs), [src/cache.rs](file:///Users/pjc/Development/endur/crates/endur/src/cache.rs))
 *   **`snapshots::capture`**: Stages changes and commits them.
 *   **Git Index Isolation**: Rather than using the user's primary Git index (`.git/index`), it creates and maintains a dedicated staging index file at `.git/endur_index` via `git2::Index::open`.
 *   **Branch Architecture**:
     *   Backups are committed to local branches named `endur/<base-commit-hash>`.
     *   The parent of the first endur snapshot is the user's HEAD commit. Subsequent backups chain off the previous endur backup commit, keeping histories completely linear.
+*   **SQLite Metadata Cache**:
+    *   To keep reads fast, snapshot metadata is cached in a local SQLite database at `$ENDUR_CACHE_HOME/snapshot_cache.db` (usually `~/.cache/endur/snapshot_cache.db`).
+    *   Schema: `snapshots (repo_path TEXT, commit_hash TEXT PRIMARY KEY, base_hash TEXT, timestamp INTEGER, message TEXT, files_changed TEXT)`.
+    *   An index is placed on `(repo_path, timestamp DESC)` to speed up list queries.
+    *   The cache database uses Write-Ahead Logging (WAL) mode to permit concurrent reads during background writes.
+    *   **Transparent Fallback**: The caching module functions on a best-effort basis. If the SQLite database is corrupt, locked, or fails to open, it fails silently and falls back directly to walking the repository's Git commits.
+*   **Snapshot Filtering**:
+    *   `snapshots::list_snapshots(path, show_all)` queries the cache first (falling back to a Git walk if cold or failed).
+    *   When `show_all` is `false` (default), snapshots are filtered to only those whose `base_hash` matches the current `HEAD` commit hash. This hides snapshots that are older than the latest formal commit.
+    *   When `show_all` is `true`, all snapshots recorded for the repository are returned.
 
 ### 7. Interactive TUI Restore & Control Center ([src/tui.rs](file:///Users/pjc/Development/endur/src/tui.rs))
 *   **Decoupled `TuiState`**: Separates core snapshot-browsing state management (watched repositories, snapshots, modified file listings, checkmarked files, and pane focusing) from the rendering engine. This allows the backup-browsing screen and its logic to be seamlessly reused inside both the single-purpose `endur restore -i` utility and the multi-tab Control Center.
