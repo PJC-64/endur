@@ -10,11 +10,25 @@ pub struct DaemonStatus {
     pub running: bool,
     pub pid: Option<u32>,
     pub uptime_secs: Option<u64>,
+    pub version: Option<String>,
+    pub client_version: String,
 }
 
 #[tauri::command]
 pub async fn get_daemon_status() -> Result<DaemonStatus, String> {
-    let is_running = poller::send_uds_command("status").await.is_ok();
+    let mut version = None;
+    let is_running = match poller::send_uds_command("status").await {
+        Ok(res) => {
+            if let Ok(val) = serde_json::from_str::<serde_json::Value>(&res) {
+                version = val
+                    .get("version")
+                    .and_then(|v| v.as_str())
+                    .map(|s| s.to_string());
+            }
+            true
+        }
+        Err(_) => false,
+    };
     let lock = RuntimeLock::load();
     let uptime_secs = if is_running && lock.pid.is_some() {
         lock.start_time
@@ -27,6 +41,8 @@ pub async fn get_daemon_status() -> Result<DaemonStatus, String> {
         running: is_running,
         pid: if is_running { lock.pid } else { None },
         uptime_secs,
+        version,
+        client_version: env!("CARGO_PKG_VERSION").to_string(),
     })
 }
 
@@ -72,6 +88,61 @@ pub async fn control_daemon(action: String) -> Result<(), String> {
                 lock.pid = None;
                 lock.save();
             }
+            Ok(())
+        }
+        "restart" => {
+            // 1. Terminate the running daemon
+            let _ = poller::send_uds_command("kill").await;
+
+            // Wait up to 1 second for the process to exit and release lock
+            let mut exited = false;
+            for _ in 0..10 {
+                tokio::time::sleep(std::time::Duration::from_millis(100)).await;
+                if poller::send_uds_command("status").await.is_err() && !RuntimeLock::is_active() {
+                    exited = true;
+                    break;
+                }
+            }
+
+            if !exited {
+                // Force reset lock PID if it didn't shut down cleanly
+                if RuntimeLock::is_active() {
+                    let mut lock = RuntimeLock::load();
+                    lock.pid = None;
+                    lock.save();
+                }
+            }
+
+            // 2. Start it again
+            let home_dir =
+                dirs::home_dir().ok_or_else(|| "Could not determine home directory".to_string())?;
+            let mut endur_path = home_dir.join(".cargo/bin/endur");
+            if !endur_path.exists() {
+                endur_path = PathBuf::from("endur");
+            }
+            let logfile_path = RuntimeLock::get_endur_cache_home().join("endur.log");
+            let mut cmd = std::process::Command::new(endur_path);
+            cmd.arg("serve").arg("--logfile").arg(logfile_path);
+            #[cfg(unix)]
+            {
+                use std::os::unix::process::CommandExt;
+                unsafe {
+                    cmd.pre_exec(|| {
+                        extern "C" {
+                            fn setsid() -> i32;
+                        }
+                        setsid();
+                        Ok(())
+                    });
+                }
+            }
+            #[cfg(windows)]
+            {
+                use std::os::windows::process::CommandExt;
+                cmd.creation_flags(0x00000008 | 0x00000200);
+            }
+            cmd.spawn()
+                .map_err(|e| format!("Failed to spawn daemon: {e}"))?;
             Ok(())
         }
         _ => Err("Invalid action".to_string()),

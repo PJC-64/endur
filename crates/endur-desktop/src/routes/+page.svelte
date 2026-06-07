@@ -6,7 +6,7 @@
   let activeTab: "dashboard" | "repos" | "backups" | "metrics" = $state("dashboard");
 
   // Daemon Status State
-  let daemonStatus = $state({ running: false, pid: null, uptime_secs: null });
+  let daemonStatus = $state({ running: false, pid: null, uptime_secs: null, version: null, client_version: "" });
 
   // Watchlist State
   let watchedRepos: string[] = $state([]);
@@ -50,6 +50,15 @@
       setTimeout(loadDaemonStatus, 500);
     } catch (e: any) {
       alert("Error toggling daemon: " + e);
+    }
+  }
+
+  async function restartDaemon() {
+    try {
+      await invoke("control_daemon", { action: "restart" });
+      setTimeout(loadDaemonStatus, 500);
+    } catch (e: any) {
+      alert("Error restarting daemon: " + e);
     }
   }
 
@@ -312,13 +321,34 @@
               <span class="metric-label">Uptime:</span>
               <span class="metric-val">{formatUptime(daemonStatus.uptime_secs)}</span>
             </div>
-            <button 
-              class="action-btn" 
-              class:stop={daemonStatus.running}
-              onclick={toggleDaemon}
-            >
-              {daemonStatus.running ? "Terminate Daemon" : "Launch Daemon"}
-            </button>
+            {#if daemonStatus.running}
+              <div class="status-metric">
+                <span class="metric-label">Running Version:</span>
+                <span class="metric-val">{daemonStatus.version || "Unknown"}</span>
+              </div>
+              {#if daemonStatus.version && daemonStatus.version !== daemonStatus.client_version}
+                <div class="version-warning-box">
+                  ⚠️ Version mismatch! Running v{daemonStatus.version}, expected v{daemonStatus.client_version}.
+                </div>
+              {/if}
+            {/if}
+            <div class="control-actions">
+              <button 
+                class="action-btn" 
+                class:stop={daemonStatus.running}
+                onclick={toggleDaemon}
+              >
+                {daemonStatus.running ? "Terminate Daemon" : "Launch Daemon"}
+              </button>
+              {#if daemonStatus.running}
+                <button 
+                  class="action-btn secondary" 
+                  onclick={restartDaemon}
+                >
+                  Restart Daemon
+                </button>
+              {/if}
+            </div>
           </div>
 
           <!-- Watchlist Stats Card -->
@@ -712,6 +742,24 @@
     padding: 0.5rem 0;
     border-bottom: 1px solid rgba(255, 255, 255, 0.02);
     font-size: 0.95rem;
+  }
+
+  .control-actions {
+    display: flex;
+    gap: 0.5rem;
+    margin-top: 1rem;
+  }
+
+  .version-warning-box {
+    margin-top: 0.75rem;
+    padding: 0.5rem 0.75rem;
+    font-size: 0.75rem;
+    color: #f59e0b;
+    background-color: rgba(245, 158, 11, 0.1);
+    border: 1px solid rgba(245, 158, 11, 0.2);
+    border-radius: 4px;
+    line-height: 1.4;
+    text-align: left;
   }
 
   .metric-label {

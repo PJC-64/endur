@@ -350,7 +350,12 @@ async fn handle_ipc_command(
         }
         "status" => {
             let config = Config::load();
-            serde_json::json!({"status": "ok", "message": format!("Watching {} paths", config.repos.len())}).to_string()
+            serde_json::json!({
+                "status": "ok",
+                "version": env!("CARGO_PKG_VERSION"),
+                "message": format!("Watching {} paths", config.repos.len())
+            })
+            .to_string()
         }
         _ => serde_json::json!({"status": "error", "message": "Unknown command"}).to_string(),
     }

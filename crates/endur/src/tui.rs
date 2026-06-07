@@ -651,6 +651,7 @@ pub struct ControlCenterState {
     pub daemon_running: bool,
     pub daemon_pid: Option<u32>,
     pub daemon_start_time: Option<SystemTime>,
+    pub daemon_version: Option<String>,
 
     pub logs: Vec<String>,
     pub logs_scroll: u16,
@@ -685,6 +686,7 @@ impl ControlCenterState {
             daemon_running,
             daemon_pid,
             daemon_start_time,
+            daemon_version: None,
             logs: initial_logs,
             logs_scroll: 0,
             preview_scroll: 0,
@@ -984,9 +986,18 @@ pub async fn run_control_center() -> Result<(), Box<dyn std::error::Error>> {
     tokio::spawn(async move {
         loop {
             let running = crate::database::RuntimeLock::is_active();
+            let mut daemon_version = None;
             let lock_info = if running {
                 let lock = crate::database::RuntimeLock::load();
-                Some((lock.pid, lock.start_time))
+                if let Ok(res) = crate::poller::send_uds_command("status").await {
+                    if let Ok(val) = serde_json::from_str::<serde_json::Value>(&res) {
+                        daemon_version = val
+                            .get("version")
+                            .and_then(|v| v.as_str())
+                            .map(|s| s.to_string());
+                    }
+                }
+                Some((lock.pid, lock.start_time, daemon_version))
             } else {
                 None
             };
@@ -1356,12 +1367,14 @@ pub async fn run_control_center() -> Result<(), Box<dyn std::error::Error>> {
             // Daemon status updates
             Some((running, lock_info)) = status_rx.recv() => {
                 state.daemon_running = running;
-                if let Some((pid, start_time)) = lock_info {
+                if let Some((pid, start_time, version)) = lock_info {
                     state.daemon_pid = pid;
                     state.daemon_start_time = start_time;
+                    state.daemon_version = version;
                 } else {
                     state.daemon_pid = None;
                     state.daemon_start_time = None;
+                    state.daemon_version = None;
                 }
             }
             // Live logs tailing
@@ -1413,14 +1426,42 @@ fn draw_control_center(f: &mut ratatui::Frame, state: &ControlCenterState) {
                 }
             })
             .unwrap_or_else(|| "unknown".to_string());
-        format!("● RUNNING (PID: {}, Uptime: {})", pid_str, uptime_str)
+
+        let mut ver_suffix = String::new();
+        if let Some(ref dv) = state.daemon_version {
+            let cv = env!("CARGO_PKG_VERSION");
+            if dv != cv {
+                ver_suffix = format!(" [Mismatch: daemon v{}, client v{}]", dv, cv);
+            }
+        }
+        format!(
+            "● RUNNING (PID: {}, Uptime: {}){}",
+            pid_str, uptime_str, ver_suffix
+        )
     } else {
         "● NOT RUNNING".to_string()
     };
+
+    let has_version_mismatch = if state.daemon_running {
+        if let Some(ref dv) = state.daemon_version {
+            dv != env!("CARGO_PKG_VERSION")
+        } else {
+            false
+        }
+    } else {
+        false
+    };
+
     let header_style = if state.daemon_running {
-        Style::default()
-            .fg(Color::Cyan)
-            .add_modifier(Modifier::BOLD)
+        if has_version_mismatch {
+            Style::default()
+                .fg(Color::Yellow)
+                .add_modifier(Modifier::BOLD)
+        } else {
+            Style::default()
+                .fg(Color::Cyan)
+                .add_modifier(Modifier::BOLD)
+        }
     } else {
         Style::default().fg(Color::Red).add_modifier(Modifier::BOLD)
     };
