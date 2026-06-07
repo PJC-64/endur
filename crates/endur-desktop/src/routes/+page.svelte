@@ -282,9 +282,20 @@
     </nav>
 
     <div class="status-footer">
-      <div class="status-indicator" class:running={daemonStatus.running}>
+      <div class="status-indicator" 
+           class:running={daemonStatus.running && (!daemonStatus.version || daemonStatus.version === daemonStatus.client_version)}
+           class:outdated={daemonStatus.running && daemonStatus.version && daemonStatus.version !== daemonStatus.client_version}
+      >
         <span class="dot"></span>
-        <span class="status-text">{daemonStatus.running ? "Daemon Active" : "Daemon Inactive"}</span>
+        <span class="status-text">
+          {#if !daemonStatus.running}
+            Daemon Inactive
+          {:else if daemonStatus.version && daemonStatus.version !== daemonStatus.client_version}
+            Daemon Outdated
+          {:else}
+            Daemon Active
+          {/if}
+        </span>
       </div>
       <div class="attribution-note">
         This fork brought to you by <a href="https://github.com/PJC-64" target="_blank" rel="noopener noreferrer">PJC-64</a>, original 'dura' by <a href="https://github.com/tkellogg" target="_blank" rel="noopener noreferrer">Tim Kellogg</a>
@@ -309,8 +320,17 @@
             <h2>Daemon Control</h2>
             <div class="status-metric">
               <span class="metric-label">Status:</span>
-              <span class="metric-val status-badge" class:active={daemonStatus.running}>
-                {daemonStatus.running ? "RUNNING" : "STOPPED"}
+              <span class="metric-val status-badge" 
+                    class:active={daemonStatus.running && (!daemonStatus.version || daemonStatus.version === daemonStatus.client_version)}
+                    class:outdated={daemonStatus.running && daemonStatus.version && daemonStatus.version !== daemonStatus.client_version}
+              >
+                {#if !daemonStatus.running}
+                  STOPPED
+                {:else if daemonStatus.version && daemonStatus.version !== daemonStatus.client_version}
+                  OUTDATED
+                {:else}
+                  RUNNING
+                {/if}
               </span>
             </div>
             <div class="status-metric">
@@ -675,6 +695,15 @@
     color: #e2e8f0;
   }
 
+  .status-indicator.outdated .dot {
+    background-color: #f59e0b;
+    box-shadow: 0 0 8px #f59e0b;
+  }
+
+  .status-indicator.outdated .status-text {
+    color: #f59e0b;
+  }
+
   /* Main Content Area */
   .content-panel {
     background-color: #0b0f19;
@@ -783,6 +812,11 @@
   .status-badge.active {
     background-color: rgba(16, 185, 129, 0.15);
     color: #10b981;
+  }
+
+  .status-badge.outdated {
+    background-color: rgba(245, 158, 11, 0.15);
+    color: #f59e0b;
   }
 
   .action-btn {
