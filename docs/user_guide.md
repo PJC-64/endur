@@ -115,6 +115,35 @@ You can configure Endur to start automatically when you log in (macOS) or boot t
     ```
     This stops the background service and deletes the plist/service configuration files.
 
+### 9. Control Center TUI (`tui`)
+To open the comprehensive interactive TUI Control Center, run:
+```bash
+endur tui
+```
+This launches a full-screen interface featuring four tabbed panes:
+1. **[1] Repositories**: Lists all watched repositories. Allows adding new repository paths (press `a`), stopping watching a repository (press `d`), or running a watchlist cleanup (press `c`).
+2. **[2] Backups & Restore**: Browse through snapshots, toggle file selections using `Space`, view real-time git diff previews, and trigger full or selective restores.
+3. **[3] Full Log**: View a scrollable list of the running daemon log file.
+4. **[4] Metrics**: Displays a clean, aligned table of snapshot metrics (latency, hashes, insertions, deletions) and overall performance statistics (average/max latencies).
+
+*   **Controls**:
+    *   Switch tabs using keys `1`, `2`, `3`, `4` or by pressing `Tab`.
+    *   Use arrow keys (`Up` / `Down` / `Left` / `Right`) to navigate lists.
+    *   On the **Metrics** tab, scroll through the metrics list using `Up` and `Down` arrow keys.
+    *   Press `q` to quit the Control Center.
+
+### 10. Performance Metrics (`metrics`)
+To scrape logs and generate performance metrics (such as snapshot backup latency, counts of changed files, insertions, and deletions), run:
+```bash
+endur metrics
+```
+*   **Log Input**: By default, `endur metrics` checks if standard input is a terminal. If it is run interactively on a TTY, it automatically reads from the default cached daemon log file (`~/.cache/endur/endur.log`). Otherwise, it expects log lines piped through standard input (e.g. `cat endur.log | endur metrics`). You can also specify an input file using `-i <FILE>`.
+*   **JSON Output (Default)**: By default, it outputs raw JSON data suitable for post-processing and automation tools.
+*   **Human-Readable Table (`-h` / `--human-readable`)**: Provide the `-h` or `--human-readable` flag to format the snapshot statistics into a cleanly aligned text table and print a performance summary including total snapshots, average latency, and max latency:
+    ```bash
+    endur metrics -h
+    ```
+
 ---
 
 ## Recovery & Restore Guide
@@ -197,6 +226,7 @@ Commands:
   restore                 Restore files from a specific endur backup snapshot.
   cleanup                 Remove any inaccessible or invalid repositories from the watch list.
   service                 Manage endur background service
+  tui                     Interactive control center for daemon monitoring and snapshot management.
   help                    Print this message or the help of the given subcommand(s)
 
 Options:
@@ -317,6 +347,29 @@ Commands:
   install    Install endur as a system startup service (launchd on macOS, systemd on Linux)
   uninstall  Uninstall endur startup service
   help       Print this message or the help of the given subcommand(s)
+
+Options:
+  -h, --help  Print help
+```
+
+### 11. Metrics Command Help (`endur metrics --help`)
+```text
+Convert logs into richer metrics about snapshots.
+
+Usage: endur {metrics|--metrics|-M} [OPTIONS]
+
+Options:
+      --help            Print help
+  -i, --input <FILE>    The log file to read. Defaults to stdin.
+  -o, --output <FILE>   The json file to write. Defaults to stdout.
+  -h, --human-readable  Print metrics in a human-readable table and summary format
+```
+
+### 12. TUI Command Help (`endur tui --help`)
+```text
+Interactive control center for daemon monitoring and snapshot management.
+
+Usage: endur tui
 
 Options:
   -h, --help  Print help

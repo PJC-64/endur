@@ -22,11 +22,13 @@ Compared to the upstream `dura` repository, **Endur** adds the following feature
 3. **Event-Driven & Debounced File Watching**: Replaced CPU-heavy active directory polling with native, event-driven file monitoring (`notify` crate) combined with a 500ms debounce cache.
 4. **Git-Aware Filtering**: Automatically respects `.gitignore` rules and ignores the `.git/` folder, reducing disk write and commit activity.
 5. **Discrete Path Restore**: Allows you to restore only specific files or folders from a backup snapshot (e.g. `endur restore <hash> --files path/to/file`) instead of checking out the entire repository tree.
-6. **Built-in CLI Recovery & Interactive TUI**:
+6. **Built-in CLI Recovery & Interactive TUIs**:
    * `endur list-snapshots`: Lists all snapshots with files changed and date/time.
    * `endur restore -i`: Visual Terminal User Interface (TUI) powered by `ratatui` to browse repositories, drill down into snapshots, preview modified files, and selectively restore files using interactive checkboxes (`Space` to toggle, `Enter` to restore).
+   * `endur tui`: A comprehensive Control Center TUI to monitor background daemon status, manage watched repositories, inspect live logs, and view performance metrics.
 7. **System Startup Service Subcommands**: Exposes `endur service install` and `endur service uninstall` to register the daemon as a system service automatically (`launchd` on macOS, `systemd` on Linux).
 8. **Configurable Log Redirection**: The `endur serve` daemon runs completely silently, logging only to a configurable file path (defaults to `~/.cache/endur/endur.log`).
+9. **Metrics Scraping & Performance Analysis**: Exposes an `endur metrics` subcommand that parses log files to compute backup frequency, snapshot latency, and repository sizes. Supports both raw JSON output and a clean formatted table (`-h/--human-readable`). Checks `stdin` to prevent interactive hangs, automatically falling back to cached log paths when run on a TTY.
 
 ## Documentation
 
