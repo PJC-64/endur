@@ -371,7 +371,7 @@ mod tests {
     #[test]
     fn test_human_readable_output() {
         use crate::metrics::get_snapshot_metrics;
-        let line = r#"{"target":"endur::poller","file":"src/poller.rs","name":"event src/poller.rs:70","level":"Level(Info)","fields":{"message":"info_operation","operation":{"Snapshot":{"error":null,"latency":0.00988253,"op":{"base_hash":"3e8e8c99b5434e726b13f56ba00d139bab57d5eb","commit_hash":"3423d21a2937d95119982395bc1281d3d8ebe3b6","endur_branch":"endur/3e8e8c99b5434e726b13f56ba00d139bab57d5eb"},"repo":"."}}},"time":"2022-01-14T01:49:51.638031+00:00"}"#;
+        let line = r#"{"target":"endur::poller","file":"src/poller.rs","name":"event src/poller.rs:70","level":"Level(Info)","fields":{"message":"info_operation","operation":{"Snapshot":{"error":null,"latency":0.00988253,"op":{"base_hash":"3e8e8c99b5434e726b13f56ba00d139bab57d5eb","commit_hash":"3423d21a2937d95119982395bc1281d3d8ebe3b6","endur_branch":"endur/3e8e8c99b5434e726b13f56ba00d139bab57d5eb"},"repo":"../.."}}},"time":"2022-01-14T01:49:51.638031+00:00"}"#;
 
         let mut input = line.as_bytes();
         let mut output = Vec::new();
@@ -382,7 +382,7 @@ mod tests {
         assert!(output_str.contains("Repository"));
         assert!(output_str.contains("Commit"));
         assert!(output_str.contains("2022-01-14 01:49:51"));
-        assert!(output_str.contains("."));
+        assert!(output_str.contains("../.."));
         assert!(output_str.contains("3423d21"));
         assert!(output_str.contains("Summary:"));
         assert!(output_str.contains("Total Snapshots     : 1"));
