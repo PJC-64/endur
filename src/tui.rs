@@ -633,6 +633,7 @@ pub enum ControlCenterTab {
     Repos,
     Snapshots,
     Logs,
+    Metrics,
 }
 
 #[derive(PartialEq, Clone, Copy, Debug)]
@@ -654,6 +655,8 @@ pub struct ControlCenterState {
     pub logs: Vec<String>,
     pub logs_scroll: u16,
     pub preview_scroll: u16,
+    pub metrics_text: String,
+    pub metrics_scroll: u16,
 
     pub input_mode: bool,
     pub input_buffer: String,
@@ -675,7 +678,7 @@ impl ControlCenterState {
             (None, None)
         };
 
-        Self {
+        let mut state = Self {
             tab: ControlCenterTab::Repos,
             repos_state,
             tab2_focus: Tab2Focus::Snapshots,
@@ -685,11 +688,29 @@ impl ControlCenterState {
             logs: initial_logs,
             logs_scroll: 0,
             preview_scroll: 0,
+            metrics_text: String::new(),
+            metrics_scroll: 0,
             input_mode: false,
             input_buffer: String::new(),
             message: Some("Welcome to Endur Control Center!".to_string()),
             message_time: Some(std::time::Instant::now()),
+        };
+        state.update_metrics();
+        state
+    }
+
+    pub fn update_metrics(&mut self) {
+        let log_path = crate::database::RuntimeLock::get_endur_cache_home().join("endur.log");
+        if let Ok(mut file) = std::fs::File::open(&log_path) {
+            let mut output = Vec::new();
+            if crate::metrics::get_snapshot_metrics(&mut file, &mut output, true).is_ok() {
+                if let Ok(s) = String::from_utf8(output) {
+                    self.metrics_text = s;
+                    return;
+                }
+            }
         }
+        self.metrics_text = "No metrics found or failed to read log file.".to_string();
     }
 
     pub fn show_message(&mut self, msg: String) {
@@ -1080,12 +1101,20 @@ pub async fn run_control_center() -> Result<(), Box<dyn std::error::Error>> {
                         KeyCode::Char('3') => {
                             state.tab = ControlCenterTab::Logs;
                         }
+                        KeyCode::Char('4') => {
+                            state.tab = ControlCenterTab::Metrics;
+                            state.update_metrics();
+                        }
                         KeyCode::Tab => {
                             state.tab = match state.tab {
                                 ControlCenterTab::Repos => ControlCenterTab::Snapshots,
                                 ControlCenterTab::Snapshots => ControlCenterTab::Logs,
-                                ControlCenterTab::Logs => ControlCenterTab::Repos,
+                                ControlCenterTab::Logs => ControlCenterTab::Metrics,
+                                ControlCenterTab::Metrics => ControlCenterTab::Repos,
                             };
+                            if state.tab == ControlCenterTab::Metrics {
+                                state.update_metrics();
+                            }
                         }
                         // Daemon Control
                         KeyCode::Char('s') | KeyCode::Char('S') => {
@@ -1306,6 +1335,19 @@ pub async fn run_control_center() -> Result<(), Box<dyn std::error::Error>> {
                                         _ => {}
                                     }
                                 }
+                                ControlCenterTab::Metrics => {
+                                    match key.code {
+                                        KeyCode::Up => {
+                                            if state.metrics_scroll > 0 {
+                                                state.metrics_scroll -= 1;
+                                            }
+                                        }
+                                        KeyCode::Down => {
+                                            state.metrics_scroll += 1;
+                                        }
+                                        _ => {}
+                                    }
+                                }
                             }
                         }
                     }
@@ -1329,6 +1371,9 @@ pub async fn run_control_center() -> Result<(), Box<dyn std::error::Error>> {
                     if state.logs.len() > 500 {
                         state.logs.remove(0);
                     }
+                }
+                if state.tab == ControlCenterTab::Metrics {
+                    state.update_metrics();
                 }
             }
         }
@@ -1398,11 +1443,13 @@ fn draw_control_center(f: &mut ratatui::Frame, state: &ControlCenterState) {
         " [1] Repositories ",
         " [2] Backups & Restore ",
         " [3] Full System Log ",
+        " [4] Metrics ",
     ];
     let active_idx = match state.tab {
         ControlCenterTab::Repos => 0,
         ControlCenterTab::Snapshots => 1,
         ControlCenterTab::Logs => 2,
+        ControlCenterTab::Metrics => 3,
     };
     let tabs_widget = Tabs::new(tab_names)
         .select(active_idx)
@@ -1611,6 +1658,18 @@ fn draw_control_center(f: &mut ratatui::Frame, state: &ControlCenterState) {
                 .scroll((state.logs_scroll, 0));
             f.render_widget(logs_widget, chunks[2]);
         }
+        ControlCenterTab::Metrics => {
+            let metrics_widget = Paragraph::new(state.metrics_text.as_str())
+                .block(
+                    Block::default()
+                        .borders(Borders::ALL)
+                        .border_type(BorderType::Rounded)
+                        .border_style(Style::default().fg(Color::Yellow))
+                        .title(" Snapshot Metrics Summary (endur metrics) "),
+                )
+                .scroll((state.metrics_scroll, 0));
+            f.render_widget(metrics_widget, chunks[2]);
+        }
     }
 
     // 4. Footer
@@ -1659,17 +1718,18 @@ fn draw_control_center(f: &mut ratatui::Frame, state: &ControlCenterState) {
             if state.input_mode {
                 " [Esc] Cancel Input  │  [Enter] Submit Path"
             } else {
-                " [Tab/1-3] Switch Tab  │  [a] Watch Repo  │  [d] Stop Watching  │  [c] Run Cleanup  │  [q] Exit"
+                " [Tab/1-4] Switch Tab  │  [a] Watch Repo  │  [d] Stop Watching  │  [c] Run Cleanup  │  [q] Exit"
             }
         }
         ControlCenterTab::Snapshots => {
             match state.tab2_focus {
-                Tab2Focus::Snapshots => " [Tab/1-3] Switch Tab  │  [Right] View Files  │  [↑/↓] Navigate Backups  │  [q] Exit",
+                Tab2Focus::Snapshots => " [Tab/1-4] Switch Tab  │  [Right] View Files  │  [↑/↓] Navigate Backups  │  [q] Exit",
                 Tab2Focus::Files => " [Space] Toggle Checkbox  │  [Enter] Restore Checked  │  [Left] Back to Backups  │  [Right] View Diff  │  [q] Exit",
-                Tab2Focus::Preview => " [↑/↓] Scroll Diff Text  │  [Left] Back to Files  │  [Tab/1-3] Switch Tab  │  [q] Exit",
+                Tab2Focus::Preview => " [↑/↓] Scroll Diff Text  │  [Left] Back to Files  │  [Tab/1-4] Switch Tab  │  [q] Exit",
             }
         }
-        ControlCenterTab::Logs => " [Tab/1-3] Switch Tab  │  [↑/↓] Scroll Logs  │  [q] Exit",
+        ControlCenterTab::Logs => " [Tab/1-4] Switch Tab  │  [↑/↓] Scroll Logs  │  [q] Exit",
+        ControlCenterTab::Metrics => " [Tab/1-4] Switch Tab  │  [↑/↓] Scroll Metrics  │  [q] Exit",
     };
     let help_widget = Paragraph::new(help_text)
         .style(Style::default().fg(Color::Gray))
