@@ -197,3 +197,58 @@ fn test_event_driven_backup_on_delete() {
         "Endur branch was not created or snapshot not captured after file deletion"
     );
 }
+
+#[test]
+#[serial]
+fn test_dynamic_gitignore_reloads() {
+    let tmp = tempfile::tempdir().unwrap();
+    let repo = GitRepo::new(tmp.path().to_path_buf());
+    repo.init();
+    repo.write_file("foo.txt");
+    repo.commit_all();
+
+    let mut endur = Endur::new();
+    endur.run_in_dir(&["watch"], tmp.path());
+
+    endur.start_async(&["serve"], true);
+
+    // Read the startup line once to ensure serve process is running
+    endur.primary.as_ref().map(|d| d.read_line(8).unwrap());
+
+    std::thread::sleep(std::time::Duration::from_millis(1500));
+
+    std::env::set_var(
+        "ENDUR_CACHE_HOME",
+        endur.runtime_lock_path().parent().unwrap(),
+    );
+    std::env::set_var("ENDUR_CONFIG_HOME", endur.config_path().parent().unwrap());
+
+    // Write a file that is not ignored first, check that a snapshot is captured
+    repo.write_file("temp.log");
+    std::thread::sleep(std::time::Duration::from_millis(2500));
+
+    // Now write a .gitignore to ignore temp.log (this will trigger a snapshot of .gitignore itself)
+    let gitignore_path = repo.dir.join(".gitignore");
+    std::fs::write(&gitignore_path, "temp.log\n").unwrap();
+    // Wait for watcher to pick up, reload .gitignore, and backup .gitignore
+    std::thread::sleep(std::time::Duration::from_millis(2500));
+
+    let snaps_before = endur::snapshots::list_snapshots(repo.dir.as_path(), true).unwrap();
+    let len_before = snaps_before.len();
+    assert!(len_before > 0);
+
+    // Modify temp.log again
+    std::fs::write(repo.dir.join("temp.log"), "modified log").unwrap();
+    std::thread::sleep(std::time::Duration::from_millis(2500));
+
+    // List snapshots again. It should NOT have captured a new snapshot since temp.log is ignored
+    let snaps_after = endur::snapshots::list_snapshots(repo.dir.as_path(), true).unwrap();
+    std::env::remove_var("ENDUR_CACHE_HOME");
+    std::env::remove_var("ENDUR_CONFIG_HOME");
+
+    assert_eq!(
+        snaps_after.len(),
+        len_before,
+        "A snapshot was incorrectly captured for an ignored file after dynamic .gitignore reload"
+    );
+}
