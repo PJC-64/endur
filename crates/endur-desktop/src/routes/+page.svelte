@@ -1,5 +1,6 @@
 <script lang="ts">
   import { invoke } from "@tauri-apps/api/core";
+  import { listen } from "@tauri-apps/api/event";
   import { onMount } from "svelte";
 
   // Tab State
@@ -32,9 +33,10 @@
   // Real-time Logs State
   let logsText = $state("");
 
-  // Polling timers
-  let statusInterval: any;
-  let logsInterval: any;
+  // Event listener handles
+  let unlistenStatus: () => void;
+  // @ts-ignore
+  let unlistenLogs: () => void;
 
   async function loadDaemonStatus() {
     try {
@@ -228,16 +230,17 @@
     loadRepos();
     loadLogs();
     
-    statusInterval = setInterval(loadDaemonStatus, 2000);
-    logsInterval = setInterval(() => {
-      if (activeTab === "dashboard") {
-        loadLogs();
-      }
-    }, 1500);
+    listen("daemon-status", (event: any) => {
+      daemonStatus = event.payload;
+    }).then(fn => unlistenStatus = fn);
+
+    listen("daemon-logs", (event: any) => {
+      logsText = event.payload;
+    }).then(fn => unlistenLogs = fn);
 
     return () => {
-      clearInterval(statusInterval);
-      clearInterval(logsInterval);
+      if (unlistenStatus) unlistenStatus();
+      if (unlistenLogs) unlistenLogs();
     };
   });
 
