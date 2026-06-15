@@ -20,7 +20,7 @@ impl WatcherManager {
 
         let watcher = notify::recommended_watcher(move |res: Result<Event, notify::Error>| {
             if let Ok(event) = res {
-                if event.kind.is_modify() || event.kind.is_create() || event.kind.is_other() {
+                if event.kind.is_modify() || event.kind.is_create() || event.kind.is_remove() || event.kind.is_other() {
                     let gitignores_map = gitignores_clone.lock().unwrap();
                     for path in event.paths {
                         let canon_path = path.canonicalize().unwrap_or_else(|_| path.clone());

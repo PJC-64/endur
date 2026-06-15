@@ -150,3 +150,48 @@ fn test_cleanup_inaccessible_repos() {
         .repos
         .contains_key(repo1.dir.canonicalize().unwrap().to_str().unwrap()));
 }
+
+#[test]
+fn test_event_driven_backup_on_delete() {
+    let tmp = tempfile::tempdir().unwrap();
+    let repo = GitRepo::new(tmp.path().to_path_buf());
+    repo.init();
+    repo.write_file("foo.txt");
+    repo.commit_all();
+
+    let mut endur = Endur::new();
+    endur.run_in_dir(&["watch"], tmp.path());
+
+    endur.start_async(&["serve"], true);
+
+    // Read the startup line once to ensure serve process is running
+    endur.primary.as_ref().map(|d| d.read_line(8).unwrap());
+
+    std::thread::sleep(std::time::Duration::from_millis(1500));
+
+    std::env::set_var(
+        "ENDUR_CACHE_HOME",
+        endur.runtime_lock_path().parent().unwrap(),
+    );
+    std::env::set_var("ENDUR_CONFIG_HOME", endur.config_path().parent().unwrap());
+
+    // DELETE the file!
+    let file_path = repo.dir.join("foo.txt");
+    std::fs::remove_file(file_path).unwrap();
+
+    std::thread::sleep(std::time::Duration::from_millis(2500));
+
+    let head_hash_raw = repo.git(&["rev-parse", "HEAD"]).unwrap();
+    let head_hash = head_hash_raw.trim();
+    let endur_branch = format!("endur/{head_hash}");
+
+    let has_endur_commit = repo.git(&["rev-parse", &endur_branch]).is_some();
+
+    std::env::remove_var("ENDUR_CACHE_HOME");
+    std::env::remove_var("ENDUR_CONFIG_HOME");
+
+    assert!(
+        has_endur_commit,
+        "Endur branch was not created or snapshot not captured after file deletion"
+    );
+}
