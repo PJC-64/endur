@@ -20,7 +20,11 @@ impl WatcherManager {
 
         let watcher = notify::recommended_watcher(move |res: Result<Event, notify::Error>| {
             if let Ok(event) = res {
-                if event.kind.is_modify() || event.kind.is_create() || event.kind.is_remove() || event.kind.is_other() {
+                if event.kind.is_modify()
+                    || event.kind.is_create()
+                    || event.kind.is_remove()
+                    || event.kind.is_other()
+                {
                     // Check if any modified file is a .gitignore and reload the cache
                     for path in &event.paths {
                         if path.file_name().and_then(|f| f.to_str()) == Some(".gitignore") {
@@ -29,13 +33,17 @@ impl WatcherManager {
                             let repo_paths: Vec<PathBuf> = map.keys().cloned().collect();
                             for repo_path in repo_paths {
                                 if canon_path.starts_with(&repo_path) {
-                                    info!("Dynamic reload of .gitignore detected for repo: {}", repo_path.display());
+                                    info!(
+                                        "Dynamic reload of .gitignore detected for repo: {}",
+                                        repo_path.display()
+                                    );
                                     let mut builder = GitignoreBuilder::new(&repo_path);
                                     let gitignore_file = repo_path.join(".gitignore");
                                     if gitignore_file.exists() {
                                         builder.add(&gitignore_file);
                                     }
-                                    let gitignore = builder.build().unwrap_or_else(|_| Gitignore::empty());
+                                    let gitignore =
+                                        builder.build().unwrap_or_else(|_| Gitignore::empty());
                                     map.insert(repo_path, gitignore);
                                 }
                             }

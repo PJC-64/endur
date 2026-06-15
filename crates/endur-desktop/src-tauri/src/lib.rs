@@ -27,7 +27,8 @@ pub fn run() {
                 loop {
                     // Check status and emit event if changed
                     if let Ok(status) = commands::get_daemon_status().await {
-                        let status_serialized = serde_json::to_value(&status).unwrap_or(serde_json::Value::Null);
+                        let status_serialized =
+                            serde_json::to_value(&status).unwrap_or(serde_json::Value::Null);
                         if Some(&status_serialized) != last_status.as_ref() {
                             let _ = app_handle.emit("daemon-status", &status);
                             last_status = Some(status_serialized);
