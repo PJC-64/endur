@@ -153,6 +153,7 @@ fn test_cleanup_inaccessible_repos() {
 }
 
 #[test]
+#[serial]
 fn test_event_driven_backup_on_delete() {
     let tmp = tempfile::tempdir().unwrap();
     let repo = GitRepo::new(tmp.path().to_path_buf());
