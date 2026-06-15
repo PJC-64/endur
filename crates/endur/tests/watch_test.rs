@@ -57,6 +57,7 @@ fn watch_dir_with_repo_nested_3_folders_deep() {
 }
 
 #[test]
+#[serial]
 fn test_event_driven_backup() {
     let tmp = tempfile::tempdir().unwrap();
     let mut repo = GitRepo::new(tmp.path().to_path_buf());

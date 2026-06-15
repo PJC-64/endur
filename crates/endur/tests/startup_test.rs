@@ -1,4 +1,5 @@
 mod util;
+use serial_test::serial;
 
 use endur::config::Config;
 use endur::database::RuntimeLock;
@@ -127,6 +128,7 @@ fn double_lock_prevention() {
 
 #[cfg(any(unix, windows))]
 #[tokio::test]
+#[serial]
 async fn test_uds_communication() {
     let mut endur = util::endur::Endur::new();
     endur.start_async(&["serve"], true);
