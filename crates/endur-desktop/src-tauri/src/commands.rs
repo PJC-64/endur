@@ -235,7 +235,6 @@ pub fn get_log_tail(lines: usize) -> Result<String, String> {
             }
         }
     }
-    formatted_lines.reverse();
     Ok(formatted_lines.join("\n"))
 }
 
