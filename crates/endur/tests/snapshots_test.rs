@@ -173,6 +173,7 @@ fn test_index_isolation() {
 }
 
 #[test]
+#[serial]
 fn test_list_snapshots() {
     let tmp = tempfile::tempdir().unwrap();
     // Isolate the SQLite cache in a separate subdir so it doesn't pollute the git repo.
@@ -307,4 +308,56 @@ fn test_get_snapshot_files() {
     let paths: Vec<String> = files.iter().map(|(_, p)| p.clone()).collect();
     assert!(paths.contains(&"foo.txt".to_string()));
     assert!(paths.contains(&"new_file.txt".to_string()));
+}
+
+#[test]
+#[serial]
+fn test_list_snapshots_stale_cache_invalidation() {
+    let tmp = tempfile::tempdir().unwrap();
+    let cache_dir = tmp.path().join("endur_cache");
+    std::fs::create_dir_all(&cache_dir).unwrap();
+    env::set_var("ENDUR_CACHE_HOME", &cache_dir);
+
+    let repo_dir = tmp.path().join("repo");
+    std::fs::create_dir_all(&repo_dir).unwrap();
+    let mut repo = util::git_repo::GitRepo::new(repo_dir);
+    repo.init();
+    repo.write_file("foo.txt");
+    repo.commit_all();
+
+    repo.change_file("foo.txt");
+    let status = snapshots::capture(repo.dir.as_path()).unwrap().unwrap();
+
+    // Warm cache:
+    let list1 = snapshots::list_snapshots(repo.dir.as_path(), true).unwrap();
+    assert_eq!(list1.len(), 1);
+    assert_eq!(list1[0].commit_hash, status.commit_hash);
+
+    // Verify cache is populated:
+    let conn = endur::cache::open().unwrap();
+    assert!(endur::cache::has_entries(&conn, repo.dir.as_path()));
+
+    // Forcefully delete the endur branch so the Git commit is unreachable/deleted from branches:
+    let branch_name = status.endur_branch;
+    repo.git(&["branch", "-D", &branch_name]).unwrap();
+
+    // Query list_snapshots again. It should find the commit is missing in Git,
+    // evict the repository from the cache, and fall back to walk_git_snapshots (which returns empty).
+    let list2 = snapshots::list_snapshots(repo.dir.as_path(), true).unwrap();
+    assert!(list2.is_empty());
+
+    // Debug print database rows
+    let mut stmt = conn.prepare("SELECT repo_path, commit_hash FROM snapshots").unwrap();
+    let rows = stmt.query_map([], |row| {
+        Ok((row.get::<_, String>(0).unwrap(), row.get::<_, String>(1).unwrap()))
+    }).unwrap();
+    for r in rows {
+        let (p, h) = r.unwrap();
+        println!("DEBUG DB ROW: repo_path='{}', commit_hash='{}'", p, h);
+    }
+
+    // Check that cache for this repo path was evicted (no entries left):
+    assert!(!endur::cache::has_entries(&conn, repo.dir.as_path()));
+
+    env::remove_var("ENDUR_CACHE_HOME");
 }

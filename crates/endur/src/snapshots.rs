@@ -229,22 +229,49 @@ fn walk_git_snapshots(path: &Path) -> Result<Vec<SnapshotInfo>, Error> {
 /// Results are served from the SQLite cache when available; on a cold start
 /// the cache is transparently populated from a full Git history walk.
 pub fn list_snapshots(path: &Path, show_all: bool) -> Result<Vec<SnapshotInfo>, Error> {
+    let repo = Repository::open(path).ok();
+
     // Determine the current HEAD hash for filtering.
-    let head_hash: Option<String> = {
-        let repo = Repository::open(path).ok();
-        repo.and_then(|r| {
-            r.head()
-                .ok()
-                .and_then(|h| h.peel_to_commit().ok())
-                .map(|c| c.id().to_string())
-        })
-    };
+    let head_hash: Option<String> = repo.as_ref().and_then(|r| {
+        r.head()
+            .ok()
+            .and_then(|h| h.peel_to_commit().ok())
+            .map(|c| c.id().to_string())
+    });
 
     // Try the SQLite cache first.
     let cached = if let Some(conn) = cache::open() {
         if cache::has_entries(&conn, path) {
-            // Cache hit – fast path.
-            cache::get_snapshots(&conn, path)
+            // Cache hit – check if the newest entry is still valid in Git.
+            let snaps = cache::get_snapshots(&conn, path);
+            let is_valid = if let Some(ref list) = snaps {
+                if let Some(first) = list.first() {
+                    if let Some(ref r) = repo {
+                        let branch_name = format!("endur/{}", first.base_hash);
+                        r.find_branch(&branch_name, git2::BranchType::Local).is_ok()
+                    } else {
+                        false
+                    }
+                } else {
+                    true // Empty cache is valid
+                }
+            } else {
+                false
+            };
+
+            if is_valid {
+                snaps
+            } else {
+                // Cache is stale – evict this repo and trigger a cold walk to refresh.
+                cache::evict_repo(&conn, path);
+                match walk_git_snapshots(path) {
+                    Ok(snaps) => {
+                        cache::upsert_snapshots(&conn, path, &snaps);
+                        Some(snaps)
+                    }
+                    Err(e) => return Err(e),
+                }
+            }
         } else {
             // Cache cold – full Git walk then populate.
             match walk_git_snapshots(path) {
