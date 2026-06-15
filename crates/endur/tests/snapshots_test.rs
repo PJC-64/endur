@@ -347,10 +347,17 @@ fn test_list_snapshots_stale_cache_invalidation() {
     assert!(list2.is_empty());
 
     // Debug print database rows
-    let mut stmt = conn.prepare("SELECT repo_path, commit_hash FROM snapshots").unwrap();
-    let rows = stmt.query_map([], |row| {
-        Ok((row.get::<_, String>(0).unwrap(), row.get::<_, String>(1).unwrap()))
-    }).unwrap();
+    let mut stmt = conn
+        .prepare("SELECT repo_path, commit_hash FROM snapshots")
+        .unwrap();
+    let rows = stmt
+        .query_map([], |row| {
+            Ok((
+                row.get::<_, String>(0).unwrap(),
+                row.get::<_, String>(1).unwrap(),
+            ))
+        })
+        .unwrap();
     for r in rows {
         let (p, h) = r.unwrap();
         println!("DEBUG DB ROW: repo_path='{}', commit_hash='{}'", p, h);
