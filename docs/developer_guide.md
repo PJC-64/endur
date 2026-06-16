@@ -102,7 +102,7 @@ The Desktop GUI is structured as a **Cargo Workspace** member separate from the 
 *   **Tauri 2.0 Backend (`crates/endur-desktop/src-tauri`)**:
     *   **IPC Commands (`src-tauri/src/commands.rs`)**: Exposes Tauri command endpoints (e.g. `get_daemon_status`, `control_daemon`, `get_watched_repositories`, `toggle_watch_repo`, `get_snapshots`, `get_snapshot_files`, `get_snapshot_diff`, `restore_files`, `get_metrics_summary`, `get_log_tail`) that translate IPC calls into calls to the core `endur` library APIs.
     *   **Core Integration**: Directly links the local `endur` crate path dependency, sharing the same `RuntimeLock`, `Config`, `poller`, and `snapshots` modules.
-    *   **Shared Log Formatting**: Uses the public `format_log_line` API from `endur::tui` to parse and filter daemon logs into clean, human-readable lines before returning them to the UI.
+    *   **Shared Log Formatting**: Uses the public `format_log_line` API from `endur::tui` to parse and filter daemon logs into clean, human-readable lines in reverse-chronological order (most recent first) before returning them to the UI.
 *   **Svelte 5 Frontend (`crates/endur-desktop/src`)**:
     *   **SPA Structure (`src/routes/+page.svelte`)**: Fully interactive Single Page App styled with a premium glassmorphic dark-theme palette using modern CSS variables, scrollbars, and active status animations.
     *   **IPC Bridge**: Communicates with the Rust backend using Tauri's `invoke` API.

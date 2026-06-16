@@ -59,7 +59,7 @@ The Endur Desktop App is built on **Tauri 2.0** and **Svelte 5** to expose the s
    * View full side-by-side git patch diff previews with insertions and deletions highlighted.
    * Select specific files via checkboxes to run a **discrete restore**, or click **Restore All** to revert the entire repository state.
 4. **Performance Analytics Tab**: Displays real-time metrics, average/maximum backup latency stats, and snapshot throughput tables directly inside the app window.
-5. **Live Log Console**: Streams human-readable background daemon logs in real-time, matching the filtering rules of the CLI Control Center (filtering out redundant check loops to prevent clutter).
+5. **Live Log Console**: Streams human-readable background daemon logs in real-time with the most recent entries displayed at the top, matching the filtering rules of the CLI Control Center (filtering out redundant check loops to prevent clutter).
 
 ### Under the Hood: Hybrid Daemon Resolution
 To avoid software conflicts and duplicate processes, the GUI implements a **hybrid daemon resolver**:
