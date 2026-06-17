@@ -225,12 +225,31 @@ impl Config {
         let mut latest_commit_id = None;
         let mut latest_time = 0;
 
+        let head = match repo.head().ok().and_then(|h| h.peel_to_commit().ok()) {
+            Some(h) => h,
+            None => return (0, None, 0),
+        };
+
+        let branch_name = format!("endur/{}", head.id());
+        let branch = match repo.find_branch(&branch_name, git2::BranchType::Local) {
+            Ok(b) => b,
+            Err(_) => return (0, None, 0),
+        };
+
+        let branch_commit = match branch.get().peel_to_commit() {
+            Ok(c) => c,
+            Err(_) => return (0, None, 0),
+        };
+
         let mut revwalk = match repo.revwalk() {
             Ok(rw) => rw,
             Err(_) => return (0, None, 0),
         };
 
-        if revwalk.push_glob("refs/heads/*").is_err() {
+        if revwalk.push(branch_commit.id()).is_err() {
+            return (0, None, 0);
+        }
+        if revwalk.hide(head.id()).is_err() {
             return (0, None, 0);
         }
 
