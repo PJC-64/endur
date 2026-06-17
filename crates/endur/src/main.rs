@@ -60,6 +60,7 @@ async fn main() {
         )
         .subcommand(
             Command::new("info")
+                .visible_alias("status")
                 .short_flag('I')
                 .long_flag("info")
                 .about("Prints summary information about the current configuration and repository status.")
