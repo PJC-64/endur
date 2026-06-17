@@ -1,8 +1,8 @@
+use crate::cache;
 use git2::{BranchType, Error, Oid, Repository};
 use std::collections::HashSet;
 use std::path::Path;
 use std::time::{SystemTime, UNIX_EPOCH};
-use crate::cache;
 
 #[derive(Debug, Default, Clone)]
 pub struct PruneOptions {
@@ -37,8 +37,8 @@ pub fn prune(path: &Path, options: &PruneOptions) -> Result<PruneReport, Error> 
     if let Ok(branches) = repo.branches(Some(BranchType::Local)) {
         for (branch, _) in branches.flatten() {
             if let Ok(Some(name_str)) = branch.name() {
-                if name_str.starts_with("endur/") {
-                    let base_hash = name_str["endur/".len()..].to_string();
+                if let Some(stripped) = name_str.strip_prefix("endur/") {
+                    let base_hash = stripped.to_string();
                     if let Some(target_oid) = branch.get().target() {
                         if let Ok(commit) = repo.find_commit(target_oid) {
                             candidates.push(PrunedSnapshot {
@@ -58,7 +58,7 @@ pub fn prune(path: &Path, options: &PruneOptions) -> Result<PruneReport, Error> 
     let to_prune = if let Some(ref target_hash) = options.target_commit {
         // Find the target OID.
         let target_oid = repo.revparse_single(target_hash)?.id();
-        
+
         // Collect all ancestors of the target OID (excluding target_oid itself).
         let mut ancestors = HashSet::new();
         let mut revwalk = repo.revwalk()?;
@@ -110,8 +110,7 @@ pub fn prune(path: &Path, options: &PruneOptions) -> Result<PruneReport, Error> 
             })
             .collect::<Vec<_>>()
     } else if let Some(ref dur_str) = options.before_duration {
-        let duration = parse_duration(dur_str)
-            .map_err(|e| Error::from_str(&e))?;
+        let duration = parse_duration(dur_str).map_err(|e| Error::from_str(&e))?;
         let now_secs = SystemTime::now()
             .duration_since(UNIX_EPOCH)
             .unwrap_or_default()
@@ -168,7 +167,9 @@ pub fn prune(path: &Path, options: &PruneOptions) -> Result<PruneReport, Error> 
 fn parse_duration(s: &str) -> Result<std::time::Duration, String> {
     let unit = s.chars().last().ok_or("Empty duration")?;
     let val_str = &s[..s.len() - 1];
-    let val: u64 = val_str.parse().map_err(|_| format!("Invalid duration value: {}", val_str))?;
+    let val: u64 = val_str
+        .parse()
+        .map_err(|_| format!("Invalid duration value: {}", val_str))?;
     match unit {
         's' => Ok(std::time::Duration::from_secs(val)),
         'm' => Ok(std::time::Duration::from_secs(val * 60)),

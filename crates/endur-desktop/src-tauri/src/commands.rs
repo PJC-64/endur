@@ -261,5 +261,8 @@ pub fn prune_snapshots(
         run_gc,
     };
     let report = endur::prune::prune(path, &options).map_err(|e| e.to_string())?;
-    Ok(format!("Successfully pruned {} snapshots.", report.pruned.len()))
+    Ok(format!(
+        "Successfully pruned {} snapshots.",
+        report.pruned.len()
+    ))
 }

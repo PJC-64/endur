@@ -381,7 +381,7 @@ fn test_prune_snapshots() {
     std::fs::create_dir_all(&repo_dir).unwrap();
     let mut repo = util::git_repo::GitRepo::new(repo_dir);
     repo.init();
-    
+
     // Commit 1
     repo.write_file("foo.txt");
     repo.commit_all();
@@ -422,4 +422,3 @@ fn test_prune_snapshots() {
 
     env::remove_var("ENDUR_CACHE_HOME");
 }
-

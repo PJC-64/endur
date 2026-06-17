@@ -485,12 +485,12 @@ async fn main() {
                         }
                     }
                 }
-                
+
                 if commits.is_empty() {
                     println!("No formal commits found in repository history.");
                     return;
                 }
-                
+
                 println!("Select the cutoff formal commit (snapshots prior to it will be pruned):");
                 for (i, commit) in commits.iter().take(10).enumerate() {
                     let summary = commit.summary().unwrap_or("");
@@ -504,7 +504,7 @@ async fn main() {
                 if commits.len() > 10 {
                     println!("... and {} more commits", commits.len() - 10);
                 }
-                
+
                 print!("Enter index or commit hash: ");
                 let _ = stdout().flush();
                 let mut input = String::new();
@@ -527,16 +527,21 @@ async fn main() {
                     return;
                 }
             } else {
-                arg_matches.get_one::<String>("commit").map(|s| s.to_string())
+                arg_matches
+                    .get_one::<String>("commit")
+                    .map(|s| s.to_string())
             };
 
-            let report = match endur::prune::prune(dir, &endur::prune::PruneOptions {
-                target_commit: target_commit.clone(),
-                keep_last_n: arg_matches.get_one::<usize>("keep").copied(),
-                before_duration: arg_matches.get_one::<String>("before").cloned(),
-                dry_run: true,
-                run_gc: false,
-            }) {
+            let report = match endur::prune::prune(
+                dir,
+                &endur::prune::PruneOptions {
+                    target_commit: target_commit.clone(),
+                    keep_last_n: arg_matches.get_one::<usize>("keep").copied(),
+                    before_duration: arg_matches.get_one::<String>("before").cloned(),
+                    dry_run: true,
+                    run_gc: false,
+                },
+            ) {
                 Ok(r) => r,
                 Err(e) => {
                     println!("Prune planning failed: {e}");
@@ -549,9 +554,15 @@ async fn main() {
                 return;
             }
 
-            println!("The following {} snapshot branches will be pruned:", report.pruned.len());
+            println!(
+                "The following {} snapshot branches will be pruned:",
+                report.pruned.len()
+            );
             for item in &report.pruned {
-                println!("  {} (latest snapshot: {})", item.branch_name, item.latest_snapshot_hash);
+                println!(
+                    "  {} (latest snapshot: {})",
+                    item.branch_name, item.latest_snapshot_hash
+                );
             }
 
             if !arg_matches.get_flag("dry-run") {
@@ -569,15 +580,21 @@ async fn main() {
                 };
 
                 if proceed {
-                    match endur::prune::prune(dir, &endur::prune::PruneOptions {
-                        target_commit,
-                        keep_last_n: arg_matches.get_one::<usize>("keep").copied(),
-                        before_duration: arg_matches.get_one::<String>("before").cloned(),
-                        dry_run: false,
-                        run_gc: arg_matches.get_flag("gc"),
-                    }) {
+                    match endur::prune::prune(
+                        dir,
+                        &endur::prune::PruneOptions {
+                            target_commit,
+                            keep_last_n: arg_matches.get_one::<usize>("keep").copied(),
+                            before_duration: arg_matches.get_one::<String>("before").cloned(),
+                            dry_run: false,
+                            run_gc: arg_matches.get_flag("gc"),
+                        },
+                    ) {
                         Ok(real_report) => {
-                            println!("Successfully pruned {} snapshot branches.", real_report.pruned.len());
+                            println!(
+                                "Successfully pruned {} snapshot branches.",
+                                real_report.pruned.len()
+                            );
                             if real_report.gc_run {
                                 println!("Garbage collection ran successfully.");
                             }

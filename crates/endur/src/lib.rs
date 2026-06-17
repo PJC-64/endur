@@ -7,10 +7,10 @@ pub mod logger;
 pub mod metrics;
 pub mod poll_guard;
 pub mod poller;
+pub mod prune;
 pub mod repo_status;
 pub mod service;
 pub mod snapshots;
-pub mod prune;
 pub mod tui;
 pub mod watcher;
 
