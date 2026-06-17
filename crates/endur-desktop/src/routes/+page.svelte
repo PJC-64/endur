@@ -201,6 +201,64 @@
     }
   }
 
+  async function pruneSnapshots() {
+    if (!selectedRepo) return;
+    const input = prompt(
+      "Prune Snapshots Options:\n" +
+      "- Enter a commit hash to prune snapshots prior to it (e.g., a8c2e9b)\n" +
+      "- Enter 'keep:<N>' to keep only the last N commits' snapshots (e.g., keep:5)\n" +
+      "- Enter 'before:<DURATION>' to prune snapshots older than a duration (e.g., before:30d, before:12h)\n\n" +
+      "Warning: This will permanently delete snapshot branches."
+    );
+    if (input === null) return; // Cancelled
+    
+    const trimmed = input.trim();
+    if (!trimmed) {
+      alert("No input provided. Pruning cancelled.");
+      return;
+    }
+
+    let targetCommit = null;
+    let keepLastN = null;
+    let beforeDuration = null;
+
+    if (trimmed.startsWith("keep:")) {
+      const n = parseInt(trimmed.substring(5).trim(), 10);
+      if (isNaN(n)) {
+        alert("Invalid number for keep option.");
+        return;
+      }
+      keepLastN = n;
+    } else if (trimmed.startsWith("before:")) {
+      const dur = trimmed.substring(7).trim();
+      if (!dur) {
+        alert("Invalid duration.");
+        return;
+      }
+      beforeDuration = dur;
+    } else {
+      targetCommit = trimmed;
+    }
+
+    const runGc = confirm("Would you like to run Git Garbage Collection (gc) afterwards to reclaim disk space immediately?");
+
+    try {
+      backupError = "";
+      backupMessage = "";
+      const result: string = await invoke("prune_snapshots", {
+        repoPath: selectedRepo,
+        targetCommit,
+        keepLastN,
+        beforeDuration,
+        runGc
+      });
+      backupMessage = result;
+      await loadSnapshots();
+    } catch (e: any) {
+      backupError = `Prune failed: ${e.toString()}`;
+    }
+  }
+
   async function loadMetrics() {
     try {
       metricsText = await invoke("get_metrics_summary", { humanReadable: true });
@@ -471,6 +529,14 @@
                   title={showAllSnapshots ? 'Showing all snapshots — click to show only current HEAD' : 'Showing snapshots since last commit — click to show all'}
                 >
                   {showAllSnapshots ? '🕰 All' : '📌 HEAD'}
+                </button>
+                <button
+                  class="filter-toggle-btn prune-btn"
+                  onclick={pruneSnapshots}
+                  disabled={!selectedRepo}
+                  title="Prune historical snapshots to reclaim disk space"
+                >
+                  ✂️ Prune
                 </button>
                 <select bind:value={selectedRepo} onchange={loadSnapshots} class="repo-select">
                   {#each watchedRepos as path}
@@ -1107,6 +1173,12 @@
     background: rgba(99, 102, 241, 0.25);
     border-color: rgba(99, 102, 241, 0.6);
     color: #a5b4fc;
+  }
+
+  .filter-toggle-btn.prune-btn:hover {
+    background: rgba(239, 68, 68, 0.15);
+    border-color: rgba(239, 68, 68, 0.4);
+    color: #fca5a5;
   }
 
   .snapshots-list, .files-list {

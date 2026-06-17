@@ -244,6 +244,45 @@ This launches an interactive Terminal User Interface (TUI) with a multi-step sel
 *   **Staged changes**: Because the files match the snapshot, Git will show the differences between your `HEAD` and the restored files as **staged changes** (`git status` shows them as changes to be committed).
 *   **Detached HEAD is avoided**: The active HEAD pointer and branch (e.g., `main` or `feature-xyz`) are not changed. You remain on your current branch.
 
+### Pruning Backup Snapshots
+Over time, historical backup branches can occupy disk space. The `endur prune` command allows you to clean up old snapshot branches and keep your repository lean.
+
+#### Prune Prior to a Commit
+To delete all snapshots associated with a target formal commit and all of its ancestors (older history), specify the commit hash:
+```bash
+endur prune <commit-hash>
+```
+
+#### Keep Last N Commits
+To keep snapshots associated with the last `N` formal commits (walked back from `HEAD`) and prune anything older:
+```bash
+endur prune --keep <N>
+```
+
+#### Prune by Age (Duration)
+To prune snapshots older than a specified duration, specify a time age (e.g. `30d` for 30 days, `12h` for 12 hours):
+```bash
+endur prune --before <DURATION>
+```
+
+#### Interactive Selection
+To browse recent commit history and select a cutoff commit interactively:
+```bash
+endur prune -i
+```
+
+#### Reclaiming Space Immediately
+Deleting snapshot branches makes the backup commits unreachable. To reclaim disk space immediately, run the command with the `--gc` flag, which executes Git Garbage Collection (`git gc --prune=now`) right after pruning:
+```bash
+endur prune <commit-hash> --gc
+```
+
+#### Dry Run
+To inspect which snapshot branches would be deleted without executing the actual deletion:
+```bash
+endur prune <commit-hash> --dry-run
+```
+
 ---
 
 ## Appendix: CLI Help Reference
@@ -414,4 +453,24 @@ Usage: endur tui
 
 Options:
   -h, --help  Print help
+```
+
+### 13. Prune Command Help (`endur prune --help`)
+```text
+Prune historical backup snapshots.
+
+Usage: endur prune [OPTIONS] [commit] [directory]
+
+Arguments:
+  [commit]     Target formal commit hash. All snapshots prior to this commit will be pruned.
+  [directory]  The directory to watch. Defaults to current directory
+
+Options:
+  -k, --keep <N>            Keep snapshots for the last N formal commits and prune older
+  -b, --before <DURATION>   Prune snapshots older than a duration (e.g., 30d, 12h, 5m)
+  -i, --interactive         Interactive mode: select the cutoff commit using TUI
+  -y, --yes                 Skip the confirmation prompt before executing deletion
+      --gc                  Run git gc --prune=now immediately after pruning
+      --dry-run             List what would be deleted without actually deleting
+  -h, --help                Print help
 ```

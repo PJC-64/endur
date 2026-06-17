@@ -24,6 +24,7 @@ Compared to the upstream `dura` repository, **Endur** adds the following feature
 5. **Discrete Path Restore**: Allows you to restore only specific files or folders from a backup snapshot (e.g. `endur restore <hash> --files path/to/file`) instead of checking out the entire repository tree.
 6. **Built-in CLI Recovery & Interactive TUIs**:
    * `endur list-snapshots`: Lists snapshots since the last formal commit by default; pass `--all` to see the full history.
+   * `endur prune`: Delete historical backup snapshots based on a target commit, age duration, or retention count to reclaim disk space.
    * `endur restore -i`: Visual Terminal User Interface (TUI) powered by `ratatui` to browse repositories, drill down into snapshots, preview modified files, and selectively restore files using interactive checkboxes (`Space` to toggle, `Enter` to restore).
    * `endur tui`: A comprehensive Control Center TUI to monitor background daemon status, manage watched repositories, inspect live logs, and view performance metrics.
 7. **System Startup Service Subcommands**: Exposes `endur service install` and `endur service uninstall` to register the daemon as a system service automatically (`launchd` on macOS, `systemd` on Linux).
@@ -108,7 +109,26 @@ Endur now provides built-in recovery subcommands:
         ```bash
         $ endur restore -i
         ```
-    These options check out the snapshot files directly to your working directory and staging index, keeping you on your current branch.
+     These options check out the snapshot files directly to your working directory and staging index, keeping you on your current branch.
+
+3. **Prune historical snapshot branches**:
+   *   To prune snapshots prior to a specific formal commit:
+       ```bash
+       $ endur prune <commit-hash>
+       ```
+   *   To keep snapshots for only the last N formal commits:
+       ```bash
+       $ endur prune --keep <N>
+       ```
+   *   To prune snapshots older than a duration (e.g., 30 days):
+       ```bash
+       $ endur prune --before 30d
+       ```
+   *   To select the cutoff commit interactively:
+       ```bash
+       $ endur prune -i
+       ```
+     *Note: You can pass `--gc` to immediately run Git Garbage Collection (`git gc --prune=now`) to reclaim disk space, and `--dry-run` to preview the deletion.*
 
 > [!TIP]
 > **Why use `endur restore` instead of native Git commands?**

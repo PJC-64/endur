@@ -16,7 +16,8 @@ pub fn run() {
             commands::restore_files,
             commands::get_metrics_summary,
             commands::get_log_tail,
-            commands::get_snapshot_files
+            commands::get_snapshot_files,
+            commands::prune_snapshots
         ])
         .setup(|app| {
             let app_handle = app.handle().clone();

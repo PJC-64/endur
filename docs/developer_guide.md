@@ -83,6 +83,14 @@ graph TD
     *   When `show_all` is `false` (default), snapshots are filtered to only those whose `base_hash` matches the current `HEAD` commit hash. This hides snapshots that are older than the latest formal commit.
     *   When `show_all` is `true`, all snapshots recorded for the repository are returned.
 
+### 6b. Snapshot Pruning Logic ([src/prune.rs](file:///Users/pjc/Development/endur/crates/endur/src/prune.rs))
+*   **`prune::prune`**: Filters and deletes historical snapshot branches.
+    *   *By Ancestry*: Resolves the target commit OID, walks back the history to identify its ancestors, and marks any branch `endur/P` where `P` is an ancestor of `T` (and `P != T`) for deletion.
+    *   *By Count*: Walks back from `HEAD` history to keep the last `N` formal commits, marking older branches for deletion.
+    *   *By Age*: Compares the timestamp of the latest backup commit in `endur/P` branches to system time and prunes branches older than a duration.
+    *   **SQLite Cache Eviction**: Synchronously deletes database cache entries matching pruned base hashes via `cache::delete_snapshots_for_base` to ensure metadata queries instantly reflect the pruning.
+    *   **Git GC**: Optionally spawns a `git gc --prune=now` subcommand to purge deleted commits and reclaim disk space immediately.
+
 ### 7. Interactive TUI Restore & Control Center ([src/tui.rs](file:///Users/pjc/Development/endur/src/tui.rs))
 *   **Decoupled `TuiState`**: Separates core snapshot-browsing state management (watched repositories, snapshots, modified file listings, checkmarked files, and pane focusing) from the rendering engine. This allows the backup-browsing screen and its logic to be seamlessly reused inside both the single-purpose `endur restore -i` utility and the multi-tab Control Center.
 *   **Asynchronous Control Center TUI (`endur tui`)**:

@@ -243,3 +243,23 @@ pub fn get_snapshot_files(repo_path: String, hash: String) -> Result<Vec<(char, 
     let path = Path::new(&repo_path);
     snapshots::get_snapshot_files(path, &hash).map_err(|e| e.to_string())
 }
+
+#[tauri::command]
+pub fn prune_snapshots(
+    repo_path: String,
+    target_commit: Option<String>,
+    keep_last_n: Option<usize>,
+    before_duration: Option<String>,
+    run_gc: bool,
+) -> Result<String, String> {
+    let path = Path::new(&repo_path);
+    let options = endur::prune::PruneOptions {
+        target_commit,
+        keep_last_n,
+        before_duration,
+        dry_run: false,
+        run_gc,
+    };
+    let report = endur::prune::prune(path, &options).map_err(|e| e.to_string())?;
+    Ok(format!("Successfully pruned {} snapshots.", report.pruned.len()))
+}
