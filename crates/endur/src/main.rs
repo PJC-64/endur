@@ -179,6 +179,42 @@ async fn main() {
                 .arg(arg_directory.clone())
         )
         .subcommand(
+            Command::new("prune")
+                .about("Prune historical backup snapshots.")
+                .arg(arg_directory.clone())
+                .arg(
+                    Arg::new("commit")
+                        .help("Target formal commit hash. All snapshots prior to this commit will be pruned.")
+                        .required_unless_present_any(["keep", "before", "interactive"])
+                )
+                .arg(
+                    arg!(-k --keep <N> "Keep snapshots for the last N formal commits and prune older")
+                        .value_parser(value_parser!(usize))
+                        .conflicts_with_all(["commit", "before", "interactive"])
+                )
+                .arg(
+                    arg!(-b --before <DURATION> "Prune snapshots older than a duration (e.g., 30d, 12h, 5m)")
+                        .conflicts_with_all(["commit", "keep", "interactive"])
+                )
+                .arg(
+                    arg!(-i --interactive "Interactive mode: select the cutoff commit using TUI")
+                        .action(clap::builder::ArgAction::SetTrue)
+                        .conflicts_with_all(["commit", "keep", "before"])
+                )
+                .arg(
+                    arg!(-y --yes "Skip the confirmation prompt before executing deletion")
+                        .action(clap::builder::ArgAction::SetTrue)
+                )
+                .arg(
+                    arg!(--gc "Run git gc --prune=now immediately after pruning")
+                        .action(clap::builder::ArgAction::SetTrue)
+                )
+                .arg(
+                    arg!(--"dry-run" "List what would be deleted without actually deleting")
+                        .action(clap::builder::ArgAction::SetTrue)
+                )
+        )
+        .subcommand(
             Command::new("cleanup")
                 .about("Remove any inaccessible or invalid repositories from the watch list.")
         )
@@ -422,6 +458,136 @@ async fn main() {
                         dir.display()
                     );
                     process::exit(1);
+                }
+            }
+        }
+        Some(("prune", arg_matches)) => {
+            let dir = Path::new(arg_matches.get_one::<String>("directory").unwrap());
+            let target_commit = if arg_matches.get_flag("interactive") {
+                let repo = match git2::Repository::open(dir) {
+                    Ok(r) => r,
+                    Err(e) => {
+                        println!("Failed to open repository: {e}");
+                        process::exit(1);
+                    }
+                };
+                let mut commits = Vec::new();
+                if let Ok(head_ref) = repo.head() {
+                    if let Ok(head_commit) = head_ref.peel_to_commit() {
+                        if let Ok(mut revwalk) = repo.revwalk() {
+                            let _ = revwalk.push(head_commit.id());
+                            for oid in revwalk.flatten() {
+                                if let Ok(commit) = repo.find_commit(oid) {
+                                    commits.push(commit);
+                                }
+                            }
+                        }
+                    }
+                }
+                
+                if commits.is_empty() {
+                    println!("No formal commits found in repository history.");
+                    return;
+                }
+                
+                println!("Select the cutoff formal commit (snapshots prior to it will be pruned):");
+                for (i, commit) in commits.iter().take(10).enumerate() {
+                    let summary = commit.summary().unwrap_or("");
+                    let date_time = chrono::Local
+                        .timestamp_opt(commit.time().seconds(), 0)
+                        .single()
+                        .map(|dt| dt.format("%Y-%m-%d %H:%M:%S").to_string())
+                        .unwrap_or_else(|| "Unknown".to_string());
+                    println!("[{}] {} ({}) - {}", i, commit.id(), date_time, summary);
+                }
+                if commits.len() > 10 {
+                    println!("... and {} more commits", commits.len() - 10);
+                }
+                
+                print!("Enter index or commit hash: ");
+                let _ = stdout().flush();
+                let mut input = String::new();
+                if stdin().read_line(&mut input).is_err() {
+                    println!("Failed to read input.");
+                    return;
+                }
+                let input = input.trim();
+                if let Ok(idx) = input.parse::<usize>() {
+                    if idx < commits.len() {
+                        Some(commits[idx].id().to_string())
+                    } else {
+                        println!("Invalid index.");
+                        return;
+                    }
+                } else if !input.is_empty() {
+                    Some(input.to_string())
+                } else {
+                    println!("Cancelled.");
+                    return;
+                }
+            } else {
+                arg_matches.get_one::<String>("commit").map(|s| s.to_string())
+            };
+
+            let report = match endur::prune::prune(dir, &endur::prune::PruneOptions {
+                target_commit: target_commit.clone(),
+                keep_last_n: arg_matches.get_one::<usize>("keep").copied(),
+                before_duration: arg_matches.get_one::<String>("before").cloned(),
+                dry_run: true,
+                run_gc: false,
+            }) {
+                Ok(r) => r,
+                Err(e) => {
+                    println!("Prune planning failed: {e}");
+                    process::exit(1);
+                }
+            };
+
+            if report.pruned.is_empty() {
+                println!("No snapshots match the criteria for pruning.");
+                return;
+            }
+
+            println!("The following {} snapshot branches will be pruned:", report.pruned.len());
+            for item in &report.pruned {
+                println!("  {} (latest snapshot: {})", item.branch_name, item.latest_snapshot_hash);
+            }
+
+            if !arg_matches.get_flag("dry-run") {
+                let proceed = if arg_matches.get_flag("yes") {
+                    true
+                } else {
+                    print!("Are you sure you want to prune these snapshots? [y/N]: ");
+                    let _ = stdout().flush();
+                    let mut input = String::new();
+                    if stdin().read_line(&mut input).is_err() {
+                        false
+                    } else {
+                        input.trim().eq_ignore_ascii_case("y")
+                    }
+                };
+
+                if proceed {
+                    match endur::prune::prune(dir, &endur::prune::PruneOptions {
+                        target_commit,
+                        keep_last_n: arg_matches.get_one::<usize>("keep").copied(),
+                        before_duration: arg_matches.get_one::<String>("before").cloned(),
+                        dry_run: false,
+                        run_gc: arg_matches.get_flag("gc"),
+                    }) {
+                        Ok(real_report) => {
+                            println!("Successfully pruned {} snapshot branches.", real_report.pruned.len());
+                            if real_report.gc_run {
+                                println!("Garbage collection ran successfully.");
+                            }
+                        }
+                        Err(e) => {
+                            println!("Failed to prune snapshots: {e}");
+                            process::exit(1);
+                        }
+                    }
+                } else {
+                    println!("Pruning cancelled.");
                 }
             }
         }

@@ -368,3 +368,58 @@ fn test_list_snapshots_stale_cache_invalidation() {
 
     env::remove_var("ENDUR_CACHE_HOME");
 }
+
+#[test]
+#[serial]
+fn test_prune_snapshots() {
+    let tmp = tempfile::tempdir().unwrap();
+    let cache_dir = tmp.path().join("endur_cache");
+    std::fs::create_dir_all(&cache_dir).unwrap();
+    env::set_var("ENDUR_CACHE_HOME", &cache_dir);
+
+    let repo_dir = tmp.path().join("repo");
+    std::fs::create_dir_all(&repo_dir).unwrap();
+    let mut repo = util::git_repo::GitRepo::new(repo_dir);
+    repo.init();
+    
+    // Commit 1
+    repo.write_file("foo.txt");
+    repo.commit_all();
+    let c1 = repo.git(&["rev-parse", "HEAD"]).unwrap().trim().to_string();
+
+    // Take snapshot on C1
+    repo.change_file("foo.txt");
+    let _s1 = snapshots::capture(repo.dir.as_path()).unwrap().unwrap();
+
+    // Commit 2
+    repo.commit_all();
+    let c2 = repo.git(&["rev-parse", "HEAD"]).unwrap().trim().to_string();
+
+    // Take snapshot on C2
+    repo.change_file("foo.txt");
+    let s2 = snapshots::capture(repo.dir.as_path()).unwrap().unwrap();
+
+    // Verify both snapshots exist
+    let list_before = snapshots::list_snapshots(repo.dir.as_path(), true).unwrap();
+    assert_eq!(list_before.len(), 2);
+
+    // Prune prior to C2 (meaning C1's snapshots should be pruned, but C2's kept)
+    let options = endur::prune::PruneOptions {
+        target_commit: Some(c2.clone()),
+        keep_last_n: None,
+        before_duration: None,
+        dry_run: false,
+        run_gc: false,
+    };
+    let report = endur::prune::prune(repo.dir.as_path(), &options).unwrap();
+    assert_eq!(report.pruned.len(), 1);
+    assert_eq!(report.pruned[0].base_hash, c1);
+
+    // Verify only C2's snapshot remains in list
+    let list_after = snapshots::list_snapshots(repo.dir.as_path(), true).unwrap();
+    assert_eq!(list_after.len(), 1);
+    assert_eq!(list_after[0].commit_hash, s2.commit_hash);
+
+    env::remove_var("ENDUR_CACHE_HOME");
+}
+

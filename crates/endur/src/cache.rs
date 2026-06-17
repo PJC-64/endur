@@ -152,6 +152,17 @@ pub fn evict_repo(conn: &Connection, repo_path: &Path) {
     }
 }
 
+/// Remove all cached snapshot rows for a specific `base_hash` in `repo_path`.
+/// Silently ignores errors.
+pub fn delete_snapshots_for_base(conn: &Connection, repo_path: &Path, base_hash: &str) {
+    if let Some(repo_str) = repo_path.to_str() {
+        let _ = conn.execute(
+            "DELETE FROM snapshots WHERE repo_path = ?1 AND base_hash = ?2",
+            params![repo_str, base_hash],
+        );
+    }
+}
+
 // ---------------------------------------------------------------------------
 // Validity check
 // ---------------------------------------------------------------------------
