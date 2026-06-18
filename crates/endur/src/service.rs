@@ -1,12 +1,12 @@
 use anyhow::{anyhow, Result};
 
-#[cfg(any(target_os = "macos", target_os = "linux"))]
+#[cfg(any(target_os = "macos", target_os = "linux", target_os = "windows"))]
 use anyhow::Context;
-#[cfg(any(target_os = "macos", target_os = "linux"))]
+#[cfg(any(target_os = "macos", target_os = "linux", target_os = "windows"))]
 use std::env;
-#[cfg(any(target_os = "macos", target_os = "linux"))]
+#[cfg(any(target_os = "macos", target_os = "linux", target_os = "windows"))]
 use std::fs::{self, create_dir_all};
-#[cfg(any(target_os = "macos", target_os = "linux"))]
+#[cfg(any(target_os = "macos", target_os = "linux", target_os = "windows"))]
 use std::process::Command;
 
 #[cfg(target_os = "macos")]
@@ -25,7 +25,7 @@ fn get_uid() -> Result<String> {
     Ok(uid)
 }
 
-#[cfg(any(target_os = "macos", target_os = "linux"))]
+#[cfg(any(target_os = "macos", target_os = "linux", target_os = "windows"))]
 fn get_endur_cli_path() -> std::path::PathBuf {
     if let Ok(exe_path) = env::current_exe() {
         if let Some(file_name) = exe_path.file_name() {
