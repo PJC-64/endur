@@ -385,38 +385,145 @@ pub fn stop() -> Result<()> {
     }
 }
 
-#[cfg(not(any(target_os = "macos", target_os = "linux")))]
+#[cfg(target_os = "windows")]
+pub fn install() -> Result<()> {
+    let exe_path = get_endur_cli_path();
+    let cmd_str = format!("\"{}\" serve", exe_path.to_string_lossy());
+    
+    println!("Adding Endur to Windows CurrentVersion\\Run registry...");
+    let status = Command::new("reg")
+        .args([
+            "add",
+            r"HKCU\Software\Microsoft\Windows\CurrentVersion\Run",
+            "/v",
+            "EndurDaemon",
+            "/t",
+            "REG_SZ",
+            "/d",
+            &cmd_str,
+            "/f",
+        ])
+        .status()
+        .context("Failed to run reg add command")?;
+
+    if !status.success() {
+        return Err(anyhow!("Failed to add registry entry for Endur"));
+    }
+
+    start()?;
+    println!("Endur startup service successfully installed and started.");
+    Ok(())
+}
+
+#[cfg(target_os = "windows")]
+pub fn uninstall() -> Result<()> {
+    let _ = stop();
+
+    println!("Removing Endur from Windows CurrentVersion\\Run registry...");
+    let status = Command::new("reg")
+        .args([
+            "delete",
+            r"HKCU\Software\Microsoft\Windows\CurrentVersion\Run",
+            "/v",
+            "EndurDaemon",
+            "/f",
+        ])
+        .status()
+        .context("Failed to run reg delete command")?;
+
+    if status.success() {
+        println!("Endur startup service successfully uninstalled.");
+    } else {
+        println!("Warning: Registry entry could not be removed (it might not have existed).");
+    }
+    Ok(())
+}
+
+#[cfg(target_os = "windows")]
+pub fn is_installed() -> bool {
+    let output = Command::new("reg")
+        .args([
+            "query",
+            r"HKCU\Software\Microsoft\Windows\CurrentVersion\Run",
+            "/v",
+            "EndurDaemon",
+        ])
+        .output();
+    
+    match output {
+        Ok(out) => out.status.success(),
+        Err(_) => false,
+    }
+}
+
+#[cfg(target_os = "windows")]
+pub fn is_running() -> Result<bool> {
+    Ok(crate::database::RuntimeLock::is_active())
+}
+
+#[cfg(target_os = "windows")]
+pub fn start() -> Result<()> {
+    let exe_path = get_endur_cli_path();
+    let logfile_path = crate::database::RuntimeLock::get_endur_cache_home().join("endur.log");
+    
+    let mut cmd = Command::new(exe_path);
+    cmd.arg("serve").arg("--logfile").arg(logfile_path);
+    
+    use std::os::windows::process::CommandExt;
+    cmd.creation_flags(0x00000008 | 0x00000200);
+    
+    cmd.spawn()
+        .context("Failed to spawn endur serve daemon process")?;
+    Ok(())
+}
+
+#[cfg(target_os = "windows")]
+pub fn stop() -> Result<()> {
+    let exe_path = get_endur_cli_path();
+    let status = Command::new(exe_path)
+        .arg("kill")
+        .status()
+        .context("Failed to run endur kill command")?;
+    
+    if status.success() {
+        Ok(())
+    } else {
+        Err(anyhow!("Failed to stop endur daemon"))
+    }
+}
+
+#[cfg(not(any(target_os = "macos", target_os = "linux", target_os = "windows")))]
 pub fn install() -> Result<()> {
     Err(anyhow!(
         "Automatic service installation is not supported on this platform."
     ))
 }
 
-#[cfg(not(any(target_os = "macos", target_os = "linux")))]
+#[cfg(not(any(target_os = "macos", target_os = "linux", target_os = "windows")))]
 pub fn uninstall() -> Result<()> {
     Err(anyhow!(
         "Automatic service uninstallation is not supported on this platform."
     ))
 }
 
-#[cfg(not(any(target_os = "macos", target_os = "linux")))]
+#[cfg(not(any(target_os = "macos", target_os = "linux", target_os = "windows")))]
 pub fn is_installed() -> bool {
     false
 }
 
-#[cfg(not(any(target_os = "macos", target_os = "linux")))]
+#[cfg(not(any(target_os = "macos", target_os = "linux", target_os = "windows")))]
 pub fn is_running() -> Result<bool> {
     Ok(false)
 }
 
-#[cfg(not(any(target_os = "macos", target_os = "linux")))]
+#[cfg(not(any(target_os = "macos", target_os = "linux", target_os = "windows")))]
 pub fn start() -> Result<()> {
     Err(anyhow!(
         "Service management is not supported on this platform."
     ))
 }
 
-#[cfg(not(any(target_os = "macos", target_os = "linux")))]
+#[cfg(not(any(target_os = "macos", target_os = "linux", target_os = "windows")))]
 pub fn stop() -> Result<()> {
     Err(anyhow!(
         "Service management is not supported on this platform."

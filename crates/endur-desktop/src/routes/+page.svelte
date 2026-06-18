@@ -535,6 +535,19 @@
                   <span class="metric-label">Process ID:</span>
                   <span class="metric-val">{daemonStatus.pid || "N/A"}</span>
                 </div>
+                <div class="status-metric">
+                  <span class="metric-label">Uptime:</span>
+                  <span class="metric-val">{formatUptime(daemonStatus.uptime_secs)}</span>
+                </div>
+                <div class="status-metric">
+                  <span class="metric-label">Running Version:</span>
+                  <span class="metric-val">{daemonStatus.version || "Unknown"}</span>
+                </div>
+                {#if daemonStatus.version && daemonStatus.version !== daemonStatus.client_version}
+                  <div class="version-warning-box">
+                    ⚠️ Version mismatch! Running v{daemonStatus.version}, expected v{daemonStatus.client_version}.
+                  </div>
+                {/if}
               {/if}
               <div class="control-actions">
                 {#if !serviceStatus.installed}
