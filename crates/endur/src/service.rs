@@ -150,6 +150,69 @@ pub fn uninstall() -> Result<()> {
     Ok(())
 }
 
+#[cfg(target_os = "macos")]
+pub fn is_installed() -> bool {
+    if let Some(home) = dirs::home_dir() {
+        home.join("Library")
+            .join("LaunchAgents")
+            .join("com.endur.daemon.plist")
+            .exists()
+    } else {
+        false
+    }
+}
+
+#[cfg(target_os = "macos")]
+pub fn is_running() -> Result<bool> {
+    let output = Command::new("launchctl")
+        .args(["list"])
+        .output()
+        .context("Failed to run launchctl list")?;
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    for line in stdout.lines() {
+        let parts: Vec<&str> = line.split_whitespace().collect();
+        if parts.len() >= 3 && parts[2] == "com.endur.daemon" {
+            return Ok(parts[0] != "-");
+        }
+    }
+    Ok(false)
+}
+
+#[cfg(target_os = "macos")]
+pub fn start() -> Result<()> {
+    let uid = get_uid()?;
+    let status = Command::new("launchctl")
+        .args(["kickstart", "-k", &format!("gui/{uid}/com.endur.daemon")])
+        .status();
+    match status {
+        Ok(s) if s.success() => Ok(()),
+        _ => {
+            let status = Command::new("launchctl")
+                .args(["start", "com.endur.daemon"])
+                .status()
+                .context("Failed to run launchctl start")?;
+            if status.success() {
+                Ok(())
+            } else {
+                Err(anyhow!("Failed to start launchctl service"))
+            }
+        }
+    }
+}
+
+#[cfg(target_os = "macos")]
+pub fn stop() -> Result<()> {
+    let status = Command::new("launchctl")
+        .args(["stop", "com.endur.daemon"])
+        .status()
+        .context("Failed to run launchctl stop")?;
+    if status.success() {
+        Ok(())
+    } else {
+        Err(anyhow!("Failed to stop launchctl service"))
+    }
+}
+
 #[cfg(target_os = "linux")]
 pub fn install() -> Result<()> {
     let exe_path = env::current_exe().context("Failed to get current executable path")?;
@@ -248,6 +311,55 @@ pub fn uninstall() -> Result<()> {
     Ok(())
 }
 
+#[cfg(target_os = "linux")]
+pub fn is_installed() -> bool {
+    if let Some(home) = dirs::home_dir() {
+        home.join(".config")
+            .join("systemd")
+            .join("user")
+            .join("endur.service")
+            .exists()
+    } else {
+        false
+    }
+}
+
+#[cfg(target_os = "linux")]
+pub fn is_running() -> Result<bool> {
+    let output = Command::new("systemctl")
+        .args(["--user", "is-active", "endur"])
+        .output()
+        .context("Failed to run systemctl is-active")?;
+    let stdout = String::from_utf8_lossy(&output.stdout).trim().to_string();
+    Ok(stdout == "active")
+}
+
+#[cfg(target_os = "linux")]
+pub fn start() -> Result<()> {
+    let status = Command::new("systemctl")
+        .args(["--user", "start", "endur"])
+        .status()
+        .context("Failed to run systemctl start")?;
+    if status.success() {
+        Ok(())
+    } else {
+        Err(anyhow!("Failed to start systemd service"))
+    }
+}
+
+#[cfg(target_os = "linux")]
+pub fn stop() -> Result<()> {
+    let status = Command::new("systemctl")
+        .args(["--user", "stop", "endur"])
+        .status()
+        .context("Failed to run systemctl stop")?;
+    if status.success() {
+        Ok(())
+    } else {
+        Err(anyhow!("Failed to stop systemd service"))
+    }
+}
+
 #[cfg(not(any(target_os = "macos", target_os = "linux")))]
 pub fn install() -> Result<()> {
     Err(anyhow!(
@@ -259,5 +371,29 @@ pub fn install() -> Result<()> {
 pub fn uninstall() -> Result<()> {
     Err(anyhow!(
         "Automatic service uninstallation is not supported on this platform."
+    ))
+}
+
+#[cfg(not(any(target_os = "macos", target_os = "linux")))]
+pub fn is_installed() -> bool {
+    false
+}
+
+#[cfg(not(any(target_os = "macos", target_os = "linux")))]
+pub fn is_running() -> Result<bool> {
+    Ok(false)
+}
+
+#[cfg(not(any(target_os = "macos", target_os = "linux")))]
+pub fn start() -> Result<()> {
+    Err(anyhow!(
+        "Service management is not supported on this platform."
+    ))
+}
+
+#[cfg(not(any(target_os = "macos", target_os = "linux")))]
+pub fn stop() -> Result<()> {
+    Err(anyhow!(
+        "Service management is not supported on this platform."
     ))
 }

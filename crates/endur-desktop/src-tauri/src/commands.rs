@@ -1,6 +1,7 @@
 use endur::config::{Config, WatchConfig};
 use endur::database::RuntimeLock;
 use endur::poller;
+use endur::service;
 use endur::snapshots::{self, SnapshotInfo};
 use serde::Serialize;
 use std::path::{Path, PathBuf};
@@ -265,4 +266,25 @@ pub fn prune_snapshots(
         "Successfully pruned {} snapshots.",
         report.pruned.len()
     ))
+}
+
+#[tauri::command]
+pub fn is_service_installed() -> Result<bool, String> {
+    Ok(service::is_installed())
+}
+
+#[tauri::command]
+pub fn is_service_running() -> Result<bool, String> {
+    service::is_running().map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub fn control_service(action: String) -> Result<(), String> {
+    match action.as_str() {
+        "install" => service::install().map_err(|e| e.to_string()),
+        "uninstall" => service::uninstall().map_err(|e| e.to_string()),
+        "start" => service::start().map_err(|e| e.to_string()),
+        "stop" => service::stop().map_err(|e| e.to_string()),
+        _ => Err("Invalid service action".to_string()),
+    }
 }

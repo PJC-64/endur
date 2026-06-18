@@ -27,6 +27,44 @@
   let backupError = $state("");
   let showAllSnapshots = $state(false);
 
+  // Service Management State
+  let managementMode: "direct" | "service" = $state("direct");
+  let serviceStatus = $state({ installed: false, running: false });
+  let serviceActionLoading = $state(false);
+
+  async function loadServiceStatus() {
+    try {
+      const installed = await invoke("is_service_installed");
+      const running = await invoke("is_service_running");
+      serviceStatus = { installed: installed as boolean, running: running as boolean };
+    } catch (e) {
+      console.error("Failed to load service status", e);
+    }
+  }
+
+  async function handleServiceAction(action: "install" | "uninstall" | "start" | "stop") {
+    try {
+      serviceActionLoading = true;
+      await invoke("control_service", { action });
+      await loadServiceStatus();
+      await loadDaemonStatus();
+    } catch (e: any) {
+      alert(`Error performing action '${action}' on service: ` + e);
+    } finally {
+      serviceActionLoading = false;
+    }
+  }
+
+  function setManagementMode(mode: "direct" | "service") {
+    managementMode = mode;
+    if (typeof localStorage !== "undefined") {
+      localStorage.setItem("endur_mgmt_mode", mode);
+    }
+    if (mode === "service") {
+      loadServiceStatus();
+    }
+  }
+
   // Metrics State
   let metricsText = $state("");
 
@@ -284,9 +322,27 @@
   }
 
   onMount(() => {
+    // Load management mode preference
+    if (typeof localStorage !== "undefined") {
+      const stored = localStorage.getItem("endur_mgmt_mode");
+      if (stored === "direct" || stored === "service") {
+        managementMode = stored;
+      }
+    }
+
     loadDaemonStatus();
     loadRepos();
     loadLogs();
+    
+    if (managementMode === "service") {
+      loadServiceStatus();
+    }
+
+    const serviceInterval = setInterval(() => {
+      if (managementMode === "service") {
+        loadServiceStatus();
+      }
+    }, 2000);
     
     listen("daemon-status", (event: any) => {
       daemonStatus = event.payload;
@@ -299,6 +355,7 @@
     return () => {
       if (unlistenStatus) unlistenStatus();
       if (unlistenLogs) unlistenLogs();
+      clearInterval(serviceInterval);
     };
   });
 
@@ -385,57 +442,128 @@
           <!-- Status Card -->
           <div class="card glass status-card">
             <h2>Daemon Control</h2>
-            <div class="status-metric">
-              <span class="metric-label">Status:</span>
-              <span class="metric-val status-badge" 
-                    class:active={daemonStatus.running && (!daemonStatus.version || daemonStatus.version === daemonStatus.client_version)}
-                    class:outdated={daemonStatus.running && daemonStatus.version && daemonStatus.version !== daemonStatus.client_version}
+            
+            <div class="mode-selector">
+              <button 
+                class="mode-btn" 
+                class:active={managementMode === "direct"} 
+                onclick={() => setManagementMode("direct")}
               >
-                {#if !daemonStatus.running}
-                  STOPPED
-                {:else if daemonStatus.version && daemonStatus.version !== daemonStatus.client_version}
-                  OUTDATED
-                {:else}
-                  RUNNING
-                {/if}
-              </span>
+                Direct Process
+              </button>
+              <button 
+                class="mode-btn" 
+                class:active={managementMode === "service"} 
+                onclick={() => setManagementMode("service")}
+              >
+                System Service
+              </button>
             </div>
-            <div class="status-metric">
-              <span class="metric-label">Process ID:</span>
-              <span class="metric-val">{daemonStatus.pid || "N/A"}</span>
-            </div>
-            <div class="status-metric">
-              <span class="metric-label">Uptime:</span>
-              <span class="metric-val">{formatUptime(daemonStatus.uptime_secs)}</span>
-            </div>
-            {#if daemonStatus.running}
+
+            {#if managementMode === "direct"}
               <div class="status-metric">
-                <span class="metric-label">Running Version:</span>
-                <span class="metric-val">{daemonStatus.version || "Unknown"}</span>
+                <span class="metric-label">Status:</span>
+                <span class="metric-val status-badge" 
+                      class:active={daemonStatus.running && (!daemonStatus.version || daemonStatus.version === daemonStatus.client_version)}
+                      class:outdated={daemonStatus.running && daemonStatus.version && daemonStatus.version !== daemonStatus.client_version}
+                >
+                  {#if !daemonStatus.running}
+                    STOPPED
+                  {:else if daemonStatus.version && daemonStatus.version !== daemonStatus.client_version}
+                    OUTDATED
+                  {:else}
+                    RUNNING
+                  {/if}
+                </span>
               </div>
-              {#if daemonStatus.version && daemonStatus.version !== daemonStatus.client_version}
-                <div class="version-warning-box">
-                  ⚠️ Version mismatch! Running v{daemonStatus.version}, expected v{daemonStatus.client_version}.
+              <div class="status-metric">
+                <span class="metric-label">Process ID:</span>
+                <span class="metric-val">{daemonStatus.pid || "N/A"}</span>
+              </div>
+              <div class="status-metric">
+                <span class="metric-label">Uptime:</span>
+                <span class="metric-val">{formatUptime(daemonStatus.uptime_secs)}</span>
+              </div>
+              {#if daemonStatus.running}
+                <div class="status-metric">
+                  <span class="metric-label">Running Version:</span>
+                  <span class="metric-val">{daemonStatus.version || "Unknown"}</span>
+                </div>
+                {#if daemonStatus.version && daemonStatus.version !== daemonStatus.client_version}
+                  <div class="version-warning-box">
+                    ⚠️ Version mismatch! Running v{daemonStatus.version}, expected v{daemonStatus.client_version}.
+                  </div>
+                {/if}
+              {/if}
+              <div class="control-actions">
+                <button 
+                  class="action-btn" 
+                  class:stop={daemonStatus.running}
+                  onclick={toggleDaemon}
+                >
+                  {daemonStatus.running ? "Terminate Daemon" : "Launch Daemon"}
+                </button>
+                {#if daemonStatus.running}
+                  <button 
+                    class="action-btn secondary" 
+                    onclick={restartDaemon}
+                  >
+                    Restart Daemon
+                  </button>
+                {/if}
+              </div>
+            {:else}
+              <div class="status-metric">
+                <span class="metric-label">Service Config:</span>
+                <span class="metric-val status-badge"
+                      class:installed={serviceStatus.installed}
+                      class:not-installed={!serviceStatus.installed}
+                >
+                  {serviceStatus.installed ? "INSTALLED" : "NOT INSTALLED"}
+                </span>
+              </div>
+              <div class="status-metric">
+                <span class="metric-label">Service Status:</span>
+                <span class="metric-val status-badge"
+                      class:active={serviceStatus.running}
+                >
+                  {serviceStatus.running ? "RUNNING" : "STOPPED"}
+                </span>
+              </div>
+              {#if serviceStatus.installed && serviceStatus.running}
+                <div class="status-metric">
+                  <span class="metric-label">Process ID:</span>
+                  <span class="metric-val">{daemonStatus.pid || "N/A"}</span>
                 </div>
               {/if}
+              <div class="control-actions">
+                {#if !serviceStatus.installed}
+                  <button 
+                    class="action-btn" 
+                    disabled={serviceActionLoading}
+                    onclick={() => handleServiceAction("install")}
+                  >
+                    {serviceActionLoading ? "Installing..." : "Install Service"}
+                  </button>
+                {:else}
+                  <button 
+                    class="action-btn" 
+                    class:stop={serviceStatus.running}
+                    disabled={serviceActionLoading}
+                    onclick={() => handleServiceAction(serviceStatus.running ? "stop" : "start")}
+                  >
+                    {serviceActionLoading ? "Processing..." : (serviceStatus.running ? "Stop Service" : "Start Service")}
+                  </button>
+                  <button 
+                    class="action-btn secondary" 
+                    disabled={serviceActionLoading}
+                    onclick={() => handleServiceAction("uninstall")}
+                  >
+                    Uninstall Service
+                  </button>
+                {/if}
+              </div>
             {/if}
-            <div class="control-actions">
-              <button 
-                class="action-btn" 
-                class:stop={daemonStatus.running}
-                onclick={toggleDaemon}
-              >
-                {daemonStatus.running ? "Terminate Daemon" : "Launch Daemon"}
-              </button>
-              {#if daemonStatus.running}
-                <button 
-                  class="action-btn secondary" 
-                  onclick={restartDaemon}
-                >
-                  Restart Daemon
-                </button>
-              {/if}
-            </div>
           </div>
 
           <!-- Watchlist Stats Card -->
@@ -1391,5 +1519,50 @@
     margin: 0;
     font-size: 1.2rem;
     color: #f8fafc;
+  }
+
+  /* Mode Selector */
+  .mode-selector {
+    display: flex;
+    background-color: rgba(11, 15, 25, 0.6);
+    border-radius: 8px;
+    padding: 0.25rem;
+    gap: 0.25rem;
+    margin-bottom: 1.25rem;
+    border: 1px solid rgba(255, 255, 255, 0.05);
+  }
+
+  .mode-btn {
+    flex: 1;
+    background: none;
+    border: none;
+    color: #94a3b8;
+    padding: 0.5rem;
+    font-size: 0.85rem;
+    font-weight: 500;
+    border-radius: 6px;
+    cursor: pointer;
+    transition: all 0.2s ease;
+  }
+
+  .mode-btn:hover {
+    color: #f8fafc;
+    background-color: rgba(255, 255, 255, 0.03);
+  }
+
+  .mode-btn.active {
+    background-color: #06b6d4;
+    color: #0f172a;
+    font-weight: 600;
+  }
+
+  .status-badge.installed {
+    background-color: rgba(16, 185, 129, 0.15);
+    color: #10b981;
+  }
+
+  .status-badge.not-installed {
+    background-color: rgba(239, 68, 68, 0.15);
+    color: #ef4444;
   }
 </style>

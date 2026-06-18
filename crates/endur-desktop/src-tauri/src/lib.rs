@@ -17,7 +17,10 @@ pub fn run() {
             commands::get_metrics_summary,
             commands::get_log_tail,
             commands::get_snapshot_files,
-            commands::prune_snapshots
+            commands::prune_snapshots,
+            commands::is_service_installed,
+            commands::is_service_running,
+            commands::control_service
         ])
         .setup(|app| {
             let app_handle = app.handle().clone();
