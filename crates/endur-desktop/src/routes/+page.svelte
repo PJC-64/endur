@@ -334,14 +334,10 @@
     loadRepos();
     loadLogs();
     
-    if (managementMode === "service") {
-      loadServiceStatus();
-    }
+    loadServiceStatus();
 
     const serviceInterval = setInterval(() => {
-      if (managementMode === "service") {
-        loadServiceStatus();
-      }
+      loadServiceStatus();
     }, 2000);
     
     listen("daemon-status", (event: any) => {
@@ -476,42 +472,48 @@
                   {/if}
                 </span>
               </div>
-              <div class="status-metric">
-                <span class="metric-label">Process ID:</span>
-                <span class="metric-val">{daemonStatus.pid || "N/A"}</span>
-              </div>
-              <div class="status-metric">
-                <span class="metric-label">Uptime:</span>
-                <span class="metric-val">{formatUptime(daemonStatus.uptime_secs)}</span>
-              </div>
-              {#if daemonStatus.running}
-                <div class="status-metric">
-                  <span class="metric-label">Running Version:</span>
-                  <span class="metric-val">{daemonStatus.version || "Unknown"}</span>
+              {#if serviceStatus.installed && serviceStatus.running}
+                <div class="service-running-note">
+                  ℹ️ Daemon is running as a system service. Use the "System Service" tab above to manage this instance.
                 </div>
-                {#if daemonStatus.version && daemonStatus.version !== daemonStatus.client_version}
-                  <div class="version-warning-box">
-                    ⚠️ Version mismatch! Running v{daemonStatus.version}, expected v{daemonStatus.client_version}.
-                  </div>
-                {/if}
-              {/if}
-              <div class="control-actions">
-                <button 
-                  class="action-btn" 
-                  class:stop={daemonStatus.running}
-                  onclick={toggleDaemon}
-                >
-                  {daemonStatus.running ? "Terminate Daemon" : "Launch Daemon"}
-                </button>
+              {:else}
+                <div class="status-metric">
+                  <span class="metric-label">Process ID:</span>
+                  <span class="metric-val">{daemonStatus.pid || "N/A"}</span>
+                </div>
+                <div class="status-metric">
+                  <span class="metric-label">Uptime:</span>
+                  <span class="metric-val">{formatUptime(daemonStatus.uptime_secs)}</span>
+                </div>
                 {#if daemonStatus.running}
-                  <button 
-                    class="action-btn secondary" 
-                    onclick={restartDaemon}
-                  >
-                    Restart Daemon
-                  </button>
+                  <div class="status-metric">
+                    <span class="metric-label">Running Version:</span>
+                    <span class="metric-val">{daemonStatus.version || "Unknown"}</span>
+                  </div>
+                  {#if daemonStatus.version && daemonStatus.version !== daemonStatus.client_version}
+                    <div class="version-warning-box">
+                      ⚠️ Version mismatch! Running v{daemonStatus.version}, expected v{daemonStatus.client_version}.
+                    </div>
+                  {/if}
                 {/if}
-              </div>
+                <div class="control-actions">
+                  <button 
+                    class="action-btn" 
+                    class:stop={daemonStatus.running}
+                    onclick={toggleDaemon}
+                  >
+                    {daemonStatus.running ? "Terminate Daemon" : "Launch Daemon"}
+                  </button>
+                  {#if daemonStatus.running}
+                    <button 
+                      class="action-btn secondary" 
+                      onclick={restartDaemon}
+                    >
+                      Restart Daemon
+                    </button>
+                  {/if}
+                </div>
+              {/if}
             {:else}
               <div class="status-metric">
                 <span class="metric-label">Service Config:</span>
@@ -1577,5 +1579,16 @@
   .status-badge.not-installed {
     background-color: rgba(239, 68, 68, 0.15);
     color: #ef4444;
+  }
+
+  .service-running-note {
+    background-color: rgba(6, 182, 212, 0.1);
+    border: 1px solid rgba(6, 182, 212, 0.2);
+    color: #06b6d4;
+    border-radius: 6px;
+    padding: 0.75rem 1rem;
+    font-size: 0.85rem;
+    line-height: 1.4;
+    margin: 1rem 0;
   }
 </style>
