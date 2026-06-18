@@ -25,9 +25,34 @@ fn get_uid() -> Result<String> {
     Ok(uid)
 }
 
+#[cfg(any(target_os = "macos", target_os = "linux"))]
+fn get_endur_cli_path() -> std::path::PathBuf {
+    if let Ok(exe_path) = env::current_exe() {
+        if let Some(file_name) = exe_path.file_name() {
+            let name_str = file_name.to_string_lossy().to_lowercase();
+            if name_str == "endur" || name_str == "endur.exe" {
+                return exe_path;
+            }
+        }
+        if let Some(home) = dirs::home_dir() {
+            let cargo_bin = home.join(".cargo").join("bin").join("endur");
+            if cargo_bin.exists() {
+                return cargo_bin;
+            }
+        }
+        if let Some(parent) = exe_path.parent() {
+            let local_bin = parent.join("endur");
+            if local_bin.exists() {
+                return local_bin;
+            }
+        }
+    }
+    std::path::PathBuf::from("endur")
+}
+
 #[cfg(target_os = "macos")]
 pub fn install() -> Result<()> {
-    let exe_path = env::current_exe().context("Failed to get current executable path")?;
+    let exe_path = get_endur_cli_path();
     let home = dirs::home_dir().ok_or_else(|| anyhow!("Could not determine home directory"))?;
     let launch_agents_dir = home.join("Library").join("LaunchAgents");
     let plist_path = launch_agents_dir.join("com.endur.daemon.plist");
@@ -215,7 +240,7 @@ pub fn stop() -> Result<()> {
 
 #[cfg(target_os = "linux")]
 pub fn install() -> Result<()> {
-    let exe_path = env::current_exe().context("Failed to get current executable path")?;
+    let exe_path = get_endur_cli_path();
     let home = dirs::home_dir().ok_or_else(|| anyhow!("Could not determine home directory"))?;
     let systemd_dir = home.join(".config").join("systemd").join("user");
     let service_path = systemd_dir.join("endur.service");
