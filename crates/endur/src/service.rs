@@ -389,7 +389,7 @@ pub fn stop() -> Result<()> {
 pub fn install() -> Result<()> {
     let exe_path = get_endur_cli_path();
     let cmd_str = format!("\"{}\" serve", exe_path.to_string_lossy());
-    
+
     println!("Adding Endur to Windows CurrentVersion\\Run registry...");
     let status = Command::new("reg")
         .args([
@@ -449,7 +449,7 @@ pub fn is_installed() -> bool {
             "EndurDaemon",
         ])
         .output();
-    
+
     match output {
         Ok(out) => out.status.success(),
         Err(_) => false,
@@ -465,13 +465,13 @@ pub fn is_running() -> Result<bool> {
 pub fn start() -> Result<()> {
     let exe_path = get_endur_cli_path();
     let logfile_path = crate::database::RuntimeLock::get_endur_cache_home().join("endur.log");
-    
+
     let mut cmd = Command::new(exe_path);
     cmd.arg("serve").arg("--logfile").arg(logfile_path);
-    
+
     use std::os::windows::process::CommandExt;
     cmd.creation_flags(0x00000008 | 0x00000200);
-    
+
     cmd.spawn()
         .context("Failed to spawn endur serve daemon process")?;
     Ok(())
@@ -484,7 +484,7 @@ pub fn stop() -> Result<()> {
         .arg("kill")
         .status()
         .context("Failed to run endur kill command")?;
-    
+
     if status.success() {
         Ok(())
     } else {
