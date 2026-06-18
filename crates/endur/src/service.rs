@@ -4,7 +4,7 @@ use anyhow::{anyhow, Result};
 use anyhow::Context;
 #[cfg(any(target_os = "macos", target_os = "linux", target_os = "windows"))]
 use std::env;
-#[cfg(any(target_os = "macos", target_os = "linux", target_os = "windows"))]
+#[cfg(any(target_os = "macos", target_os = "linux"))]
 use std::fs::{self, create_dir_all};
 #[cfg(any(target_os = "macos", target_os = "linux", target_os = "windows"))]
 use std::process::Command;
