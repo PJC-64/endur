@@ -657,6 +657,12 @@ pub enum Tab2Focus {
     Preview,
 }
 
+#[derive(PartialEq, Clone, Copy, Debug)]
+pub enum ManagementMode {
+    Direct,
+    Service,
+}
+
 pub struct ControlCenterState {
     pub tab: ControlCenterTab,
     pub repos_state: TuiState,
@@ -666,6 +672,10 @@ pub struct ControlCenterState {
     pub daemon_pid: Option<u32>,
     pub daemon_start_time: Option<SystemTime>,
     pub daemon_version: Option<String>,
+
+    pub management_mode: ManagementMode,
+    pub service_installed: bool,
+    pub service_running: bool,
 
     pub logs: Vec<String>,
     pub logs_scroll: u16,
@@ -693,6 +703,9 @@ impl ControlCenterState {
             (None, None)
         };
 
+        let service_installed = crate::service::is_installed();
+        let service_running = crate::service::is_running().unwrap_or(false);
+
         let mut state = Self {
             tab: ControlCenterTab::Repos,
             repos_state,
@@ -701,6 +714,9 @@ impl ControlCenterState {
             daemon_pid,
             daemon_start_time,
             daemon_version: None,
+            management_mode: ManagementMode::Direct,
+            service_installed,
+            service_running,
             logs: initial_logs,
             logs_scroll: 0,
             preview_scroll: 0,
@@ -1015,7 +1031,13 @@ pub async fn run_control_center() -> Result<(), Box<dyn std::error::Error>> {
             } else {
                 None
             };
-            if status_tx.send((running, lock_info)).await.is_err() {
+            let service_installed = crate::service::is_installed();
+            let service_running = crate::service::is_running().unwrap_or(false);
+            if status_tx
+                .send((running, lock_info, service_installed, service_running))
+                .await
+                .is_err()
+            {
                 break;
             }
             tokio::time::sleep(std::time::Duration::from_secs(2)).await;
@@ -1141,47 +1163,137 @@ pub async fn run_control_center() -> Result<(), Box<dyn std::error::Error>> {
                                 state.update_metrics();
                             }
                         }
-                        // Daemon Control
-                        KeyCode::Char('s') | KeyCode::Char('S') => {
-                            let current_exe = std::env::current_exe().unwrap_or_else(|_| std::path::PathBuf::from("endur"));
-                            let logfile_path = crate::database::RuntimeLock::get_endur_cache_home().join("endur.log");
-                            let mut cmd = std::process::Command::new(current_exe);
-                            cmd.arg("serve")
-                                .arg("--logfile")
-                                .arg(logfile_path);
-                            #[cfg(unix)]
-                            {
-                                use std::os::unix::process::CommandExt;
-                                unsafe {
-                                    cmd.pre_exec(|| {
-                                        extern "C" {
-                                            fn setsid() -> i32;
-                                        }
-                                        setsid();
-                                        Ok(())
-                                    });
+                        // Management mode toggle
+                        KeyCode::Char('m') | KeyCode::Char('M') => {
+                            state.management_mode = match state.management_mode {
+                                ManagementMode::Direct => ManagementMode::Service,
+                                ManagementMode::Service => ManagementMode::Direct,
+                            };
+                            state.show_message(format!(
+                                "Switched to {:?} management mode",
+                                state.management_mode
+                            ));
+                        }
+                        // Service Installation / Uninstallation
+                        KeyCode::Char('i') | KeyCode::Char('I') => {
+                            if state.management_mode == ManagementMode::Service {
+                                state.show_message("Installing service...".to_string());
+                                match crate::service::install() {
+                                    Ok(_) => {
+                                        state.service_installed = true;
+                                        state.service_running = true;
+                                        state.show_message("Service installed and started successfully.".to_string());
+                                    }
+                                    Err(e) => {
+                                        state.show_message(format!("Failed to install service: {}", e));
+                                    }
                                 }
                             }
-                            #[cfg(windows)]
-                            {
-                                use std::os::windows::process::CommandExt;
-                                cmd.creation_flags(0x00000008 | 0x00000200);
+                        }
+                        KeyCode::Char('u') | KeyCode::Char('U') => {
+                            if state.management_mode == ManagementMode::Service {
+                                state.show_message("Uninstalling service...".to_string());
+                                match crate::service::uninstall() {
+                                    Ok(_) => {
+                                        state.service_installed = false;
+                                        state.service_running = false;
+                                        state.show_message("Service uninstalled successfully.".to_string());
+                                    }
+                                    Err(e) => {
+                                        state.show_message(format!("Failed to uninstall service: {}", e));
+                                    }
+                                }
                             }
-                            let _child = cmd.spawn();
-                            state.show_message("Starting daemon...".to_string());
+                        }
+                        // Daemon / Service Control
+                        KeyCode::Char('s') | KeyCode::Char('S') => {
+                            match state.management_mode {
+                                ManagementMode::Direct => {
+                                    if state.service_installed && state.service_running {
+                                        state.show_message("Daemon is running as a system service. Toggle to Service mode [m] to manage.".to_string());
+                                    } else {
+                                        let current_exe = std::env::current_exe().unwrap_or_else(|_| std::path::PathBuf::from("endur"));
+                                        let logfile_path = crate::database::RuntimeLock::get_endur_cache_home().join("endur.log");
+                                        let mut cmd = std::process::Command::new(current_exe);
+                                        cmd.arg("serve")
+                                            .arg("--logfile")
+                                            .arg(logfile_path);
+                                        #[cfg(unix)]
+                                        {
+                                            use std::os::unix::process::CommandExt;
+                                            unsafe {
+                                                cmd.pre_exec(|| {
+                                                    extern "C" {
+                                                        fn setsid() -> i32;
+                                                    }
+                                                    setsid();
+                                                    Ok(())
+                                                });
+                                            }
+                                        }
+                                        #[cfg(windows)]
+                                        {
+                                            use std::os::windows::process::CommandExt;
+                                            cmd.creation_flags(0x00000008 | 0x00000200);
+                                        }
+                                        let _child = cmd.spawn();
+                                        state.show_message("Starting daemon...".to_string());
+                                    }
+                                }
+                                ManagementMode::Service => {
+                                    if !state.service_installed {
+                                        state.show_message("Service is not installed. Press [i] to install it.".to_string());
+                                    } else {
+                                        state.show_message("Starting service...".to_string());
+                                        match crate::service::start() {
+                                            Ok(_) => {
+                                                state.service_running = true;
+                                                state.show_message("Service started successfully.".to_string());
+                                            }
+                                            Err(e) => {
+                                                state.show_message(format!("Failed to start service: {}", e));
+                                            }
+                                        }
+                                    }
+                                }
+                            }
                         }
                         KeyCode::Char('k') | KeyCode::Char('K') => {
-                            let res = crate::poller::send_uds_command("kill").await;
-                            match res {
-                                Ok(msg) => state.show_message(format!("Daemon stopped: {}", msg)),
-                                Err(_) => {
-                                    if crate::database::RuntimeLock::is_active() {
-                                        let mut lock = crate::database::RuntimeLock::load();
-                                        lock.pid = None;
-                                        lock.save();
-                                        state.show_message("Daemon stopped via lock file fallback.".to_string());
+                            match state.management_mode {
+                                ManagementMode::Direct => {
+                                    if state.service_installed && state.service_running {
+                                        state.show_message("Daemon is running as a system service. Toggle to Service mode [m] to manage.".to_string());
                                     } else {
-                                        state.show_message("Daemon is not running.".to_string());
+                                        let res = crate::poller::send_uds_command("kill").await;
+                                        match res {
+                                            Ok(msg) => state.show_message(format!("Daemon stopped: {}", msg)),
+                                            Err(_) => {
+                                                if crate::database::RuntimeLock::is_active() {
+                                                    let mut lock = crate::database::RuntimeLock::load();
+                                                    lock.pid = None;
+                                                    lock.save();
+                                                    state.show_message("Daemon stopped via lock file fallback.".to_string());
+                                                } else {
+                                                    state.show_message("Daemon is not running.".to_string());
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                                ManagementMode::Service => {
+                                    if !state.service_installed {
+                                        state.show_message("Service is not installed.".to_string());
+                                    } else {
+                                        state.show_message("Stopping service...".to_string());
+                                        match crate::service::stop() {
+                                            Ok(_) => {
+                                                state.service_running = false;
+                                                state.show_message("Service stopped successfully.".to_string());
+                                            }
+                                            Err(e) => {
+                                                state.show_message(format!("Failed to stop service: {}", e));
+                                            }
+                                        }
                                     }
                                 }
                             }
@@ -1379,8 +1491,10 @@ pub async fn run_control_center() -> Result<(), Box<dyn std::error::Error>> {
                 }
             }
             // Daemon status updates
-            Some((running, lock_info)) = status_rx.recv() => {
+            Some((running, lock_info, service_installed, service_running)) = status_rx.recv() => {
                 state.daemon_running = running;
+                state.service_installed = service_installed;
+                state.service_running = service_running;
                 if let Some((pid, start_time, version)) = lock_info {
                     state.daemon_pid = pid;
                     state.daemon_start_time = start_time;
@@ -1410,10 +1524,12 @@ pub async fn run_control_center() -> Result<(), Box<dyn std::error::Error>> {
 }
 
 fn draw_control_center(f: &mut ratatui::Frame, state: &ControlCenterState) {
+    use ratatui::text::{Line, Span};
+
     let chunks = Layout::default()
         .direction(Direction::Vertical)
         .constraints([
-            Constraint::Length(3), // Header
+            Constraint::Length(5), // Header (needs 5 lines for mode + status, keys, and alerts)
             Constraint::Length(1), // Tabs
             Constraint::Min(10),   // Active Pane
             Constraint::Length(9), // Footer (logs + messages + help)
@@ -1421,42 +1537,255 @@ fn draw_control_center(f: &mut ratatui::Frame, state: &ControlCenterState) {
         .split(f.area());
 
     // 1. Header
-    let daemon_status_str = if state.daemon_running {
-        let pid_str = state
-            .daemon_pid
-            .map(|p| p.to_string())
-            .unwrap_or_else(|| "unknown".to_string());
-        let uptime_str = state
-            .daemon_start_time
-            .and_then(|t| SystemTime::now().duration_since(t).ok())
-            .map(|d| {
-                let secs = d.as_secs();
-                if secs < 60 {
-                    format!("{}s", secs)
-                } else if secs < 3600 {
-                    format!("{}m", secs / 60)
-                } else {
-                    format!("{}h {}m", secs / 3600, (secs % 3600) / 60)
-                }
-            })
-            .unwrap_or_else(|| "unknown".to_string());
+    let mut header_lines = Vec::new();
 
-        let mut ver_suffix = String::new();
-        if let Some(ref dv) = state.daemon_version {
-            let cv = env!("CARGO_PKG_VERSION");
-            if dv != cv {
-                ver_suffix = format!(" [Mismatch: daemon v{}, client v{}]", dv, cv);
+    match state.management_mode {
+        ManagementMode::Direct => {
+            if state.service_installed && state.service_running {
+                // Line 1: Mode & Status
+                header_lines.push(Line::from(vec![
+                    Span::styled(" Mode: ", Style::default().fg(Color::DarkGray)),
+                    Span::styled(
+                        "Direct Process",
+                        Style::default()
+                            .fg(Color::Yellow)
+                            .add_modifier(Modifier::BOLD),
+                    ),
+                    Span::styled("  │  Daemon Status: ", Style::default().fg(Color::DarkGray)),
+                    Span::styled(
+                        "● RUNNING AS SYSTEM SERVICE",
+                        Style::default()
+                            .fg(Color::Cyan)
+                            .add_modifier(Modifier::BOLD),
+                    ),
+                ]));
+                // Line 2: Note / Warning
+                header_lines.push(Line::from(vec![Span::styled(
+                    " ℹ️ Running as a system service. Toggle to System Service mode [m] to manage.",
+                    Style::default().fg(Color::Cyan),
+                )]));
+                // Line 3: Keys
+                header_lines.push(Line::from(vec![
+                    Span::styled(" Keys: ", Style::default().fg(Color::DarkGray)),
+                    Span::styled("[m]", Style::default().fg(Color::Yellow)),
+                    Span::raw(" Switch Management Mode  "),
+                    Span::styled("[r]", Style::default().fg(Color::Yellow)),
+                    Span::raw(" Reload Config"),
+                ]));
+            } else {
+                // Not running under system service
+                let status_style = if state.daemon_running {
+                    let has_mismatch = if let Some(ref dv) = state.daemon_version {
+                        dv != env!("CARGO_PKG_VERSION")
+                    } else {
+                        false
+                    };
+                    if has_mismatch {
+                        Style::default()
+                            .fg(Color::Yellow)
+                            .add_modifier(Modifier::BOLD)
+                    } else {
+                        Style::default()
+                            .fg(Color::Green)
+                            .add_modifier(Modifier::BOLD)
+                    }
+                } else {
+                    Style::default().fg(Color::Red).add_modifier(Modifier::BOLD)
+                };
+
+                let status_text = if state.daemon_running {
+                    let pid_str = state
+                        .daemon_pid
+                        .map(|p| p.to_string())
+                        .unwrap_or_else(|| "unknown".to_string());
+                    let uptime_str = state
+                        .daemon_start_time
+                        .and_then(|t| SystemTime::now().duration_since(t).ok())
+                        .map(|d| {
+                            let secs = d.as_secs();
+                            if secs < 60 {
+                                format!("{}s", secs)
+                            } else if secs < 3600 {
+                                format!("{}m", secs / 60)
+                            } else {
+                                format!("{}h {}m", secs / 3600, (secs % 3600) / 60)
+                            }
+                        })
+                        .unwrap_or_else(|| "unknown".to_string());
+                    format!("● RUNNING (PID: {}, Uptime: {})", pid_str, uptime_str)
+                } else {
+                    "● NOT RUNNING".to_string()
+                };
+
+                header_lines.push(Line::from(vec![
+                    Span::styled(" Mode: ", Style::default().fg(Color::DarkGray)),
+                    Span::styled(
+                        "Direct Process",
+                        Style::default()
+                            .fg(Color::Yellow)
+                            .add_modifier(Modifier::BOLD),
+                    ),
+                    Span::styled("  │  Daemon Status: ", Style::default().fg(Color::DarkGray)),
+                    Span::styled(status_text, status_style),
+                ]));
+
+                header_lines.push(Line::from(vec![
+                    Span::styled(" Keys: ", Style::default().fg(Color::DarkGray)),
+                    Span::styled("[s]", Style::default().fg(Color::Yellow)),
+                    Span::raw(" Start Daemon  "),
+                    Span::styled("[k]", Style::default().fg(Color::Yellow)),
+                    Span::raw(" Kill Daemon  "),
+                    Span::styled("[r]", Style::default().fg(Color::Yellow)),
+                    Span::raw(" Reload Config  "),
+                    Span::styled("[m]", Style::default().fg(Color::Yellow)),
+                    Span::raw(" Switch to Service Mode"),
+                ]));
+
+                // Line 3: Version mismatch warning if any
+                let mut warning_line = Line::from("");
+                if state.daemon_running {
+                    if let Some(ref dv) = state.daemon_version {
+                        let cv = env!("CARGO_PKG_VERSION");
+                        if dv != cv {
+                            warning_line = Line::from(vec![Span::styled(
+                                format!(" ⚠️ Version mismatch! Running v{}, expected v{}.", dv, cv),
+                                Style::default().fg(Color::Red).add_modifier(Modifier::BOLD),
+                            )]);
+                        }
+                    }
+                }
+                header_lines.push(warning_line);
             }
         }
-        format!(
-            "● RUNNING (PID: {}, Uptime: {}){}",
-            pid_str, uptime_str, ver_suffix
-        )
-    } else {
-        "● NOT RUNNING".to_string()
-    };
+        ManagementMode::Service => {
+            let config_status_text = if state.service_installed {
+                "INSTALLED"
+            } else {
+                "NOT INSTALLED"
+            };
+            let config_status_style = if state.service_installed {
+                Style::default()
+                    .fg(Color::Green)
+                    .add_modifier(Modifier::BOLD)
+            } else {
+                Style::default().fg(Color::Red).add_modifier(Modifier::BOLD)
+            };
 
-    let has_version_mismatch = if state.daemon_running {
+            let service_status_text = if state.service_running {
+                "RUNNING"
+            } else {
+                "STOPPED"
+            };
+            let service_status_style = if state.service_running {
+                Style::default()
+                    .fg(Color::Green)
+                    .add_modifier(Modifier::BOLD)
+            } else {
+                Style::default().fg(Color::Red).add_modifier(Modifier::BOLD)
+            };
+
+            header_lines.push(Line::from(vec![
+                Span::styled(" Mode: ", Style::default().fg(Color::DarkGray)),
+                Span::styled(
+                    "System Service",
+                    Style::default()
+                        .fg(Color::Yellow)
+                        .add_modifier(Modifier::BOLD),
+                ),
+                Span::styled(
+                    "  │  Service Config: ",
+                    Style::default().fg(Color::DarkGray),
+                ),
+                Span::styled(config_status_text, config_status_style),
+                Span::styled(
+                    "  │  Service Status: ",
+                    Style::default().fg(Color::DarkGray),
+                ),
+                Span::styled(service_status_text, service_status_style),
+            ]));
+
+            // Build action keys
+            let mut keys_spans = vec![Span::styled(
+                " Keys: ",
+                Style::default().fg(Color::DarkGray),
+            )];
+            if !state.service_installed {
+                keys_spans.push(Span::styled("[i]", Style::default().fg(Color::Yellow)));
+                keys_spans.push(Span::raw(" Install Service  "));
+            } else {
+                keys_spans.push(Span::styled("[s]", Style::default().fg(Color::Yellow)));
+                keys_spans.push(Span::raw(" Start Service  "));
+                keys_spans.push(Span::styled("[k]", Style::default().fg(Color::Yellow)));
+                keys_spans.push(Span::raw(" Stop Service  "));
+                keys_spans.push(Span::styled("[u]", Style::default().fg(Color::Yellow)));
+                keys_spans.push(Span::raw(" Uninstall Service  "));
+            }
+            keys_spans.push(Span::styled("[m]", Style::default().fg(Color::Yellow)));
+            keys_spans.push(Span::raw(" Switch to Direct Mode"));
+
+            header_lines.push(Line::from(keys_spans));
+
+            // Line 3: Info & mismatch warning
+            let mut info_spans = vec![];
+            if state.service_installed && state.service_running {
+                let pid_str = state
+                    .daemon_pid
+                    .map(|p| p.to_string())
+                    .unwrap_or_else(|| "unknown".to_string());
+                let uptime_str = state
+                    .daemon_start_time
+                    .and_then(|t| SystemTime::now().duration_since(t).ok())
+                    .map(|d| {
+                        let secs = d.as_secs();
+                        if secs < 60 {
+                            format!("{}s", secs)
+                        } else if secs < 3600 {
+                            format!("{}m", secs / 60)
+                        } else {
+                            format!("{}h {}m", secs / 3600, (secs % 3600) / 60)
+                        }
+                    })
+                    .unwrap_or_else(|| "unknown".to_string());
+                let ver_str = state.daemon_version.as_deref().unwrap_or("unknown");
+
+                info_spans.push(Span::styled(" PID: ", Style::default().fg(Color::DarkGray)));
+                info_spans.push(Span::raw(format!("{}  │  ", pid_str)));
+                info_spans.push(Span::styled(
+                    "Uptime: ",
+                    Style::default().fg(Color::DarkGray),
+                ));
+                info_spans.push(Span::raw(format!("{}  │  ", uptime_str)));
+                info_spans.push(Span::styled(
+                    "Version: ",
+                    Style::default().fg(Color::DarkGray),
+                ));
+                info_spans.push(Span::raw(ver_str.to_string()));
+
+                if let Some(ref dv) = state.daemon_version {
+                    let cv = env!("CARGO_PKG_VERSION");
+                    if dv != cv {
+                        info_spans.push(Span::styled(
+                            format!("  ⚠️ Version mismatch! (expected v{})", cv),
+                            Style::default().fg(Color::Red).add_modifier(Modifier::BOLD),
+                        ));
+                    }
+                }
+            }
+            header_lines.push(Line::from(info_spans));
+        }
+    }
+
+    let is_active = match state.management_mode {
+        ManagementMode::Direct => {
+            if state.service_installed && state.service_running {
+                true
+            } else {
+                state.daemon_running
+            }
+        }
+        ManagementMode::Service => state.service_running,
+    };
+    let has_mismatch = if state.daemon_running {
         if let Some(ref dv) = state.daemon_version {
             dv != env!("CARGO_PKG_VERSION")
         } else {
@@ -1465,30 +1794,22 @@ fn draw_control_center(f: &mut ratatui::Frame, state: &ControlCenterState) {
     } else {
         false
     };
-
-    let header_style = if state.daemon_running {
-        if has_version_mismatch {
-            Style::default()
-                .fg(Color::Yellow)
-                .add_modifier(Modifier::BOLD)
+    let border_color = if is_active {
+        if has_mismatch {
+            Color::Yellow
         } else {
-            Style::default()
-                .fg(Color::Cyan)
-                .add_modifier(Modifier::BOLD)
+            Color::Cyan
         }
     } else {
-        Style::default().fg(Color::Red).add_modifier(Modifier::BOLD)
+        Color::Red
     };
-    let header_widget = Paragraph::new(format!(
-        " Endur Control Center v{}  │  Daemon Status: {}  │  [S] Start Daemon  [K] Kill Daemon  [R] Reload Config",
-        env!("CARGO_PKG_VERSION"),
-        daemon_status_str
-    ))
-    .style(header_style)
-    .block(
+    let border_style = Style::default().fg(border_color);
+
+    let header_widget = Paragraph::new(header_lines).block(
         Block::default()
             .borders(Borders::ALL)
             .border_type(BorderType::Rounded)
+            .border_style(border_style)
             .title(" Status & Control "),
     );
     f.render_widget(header_widget, chunks[0]);
