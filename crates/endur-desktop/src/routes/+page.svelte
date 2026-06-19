@@ -638,11 +638,21 @@
                   <button 
                     class="action-btn secondary" 
                     disabled={serviceActionLoading}
+                    onclick={() => handleServiceAction("install")}
+                  >
+                    {serviceActionLoading ? "Reinstalling..." : "Reinstall Service"}
+                  </button>
+                  <button 
+                    class="action-btn secondary" 
+                    disabled={serviceActionLoading}
                     onclick={() => handleServiceAction("uninstall")}
                   >
                     Uninstall Service
                   </button>
                 {/if}
+              </div>
+              <div class="service-note-box">
+                ℹ️ Note: Installing or reinstalling the service will automatically stop and remove any currently-installed service version before registering and starting the latest one.
               </div>
             {/if}
           </div>
@@ -1941,5 +1951,17 @@
     font-size: 0.85rem;
     line-height: 1.4;
     margin: 1rem 0;
+  }
+
+  .service-note-box {
+    margin-top: 0.75rem;
+    padding: 0.5rem 0.75rem;
+    font-size: 0.75rem;
+    color: #94a3b8;
+    background-color: rgba(255, 255, 255, 0.02);
+    border: 1px solid rgba(255, 255, 255, 0.05);
+    border-radius: 4px;
+    line-height: 1.4;
+    text-align: left;
   }
 </style>

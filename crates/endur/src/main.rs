@@ -222,7 +222,7 @@ async fn main() {
         .subcommand(
             Command::new("service")
                 .about("Manage endur background service")
-                .subcommand(Command::new("install").about("Install endur as a system startup service (launchd on macOS, systemd on Linux)"))
+                .subcommand(Command::new("install").about("Install endur as a system startup service (launchd on macOS, systemd on Linux, Windows registry). If already installed, the existing service is stopped and removed before installing the latest version."))
                 .subcommand(Command::new("uninstall").about("Uninstall endur startup service"))
         )
         .subcommand(

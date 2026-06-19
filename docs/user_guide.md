@@ -78,7 +78,7 @@ Endur favors running as an OS-level background startup service rather than a man
     ```bash
     endur service install
     ```
-    This writes the appropriate configuration (`launchd` plist on macOS, `systemd` user service on Linux, or CurrentVersion\Run registry key on Windows) and loads and starts the background service immediately.
+    This writes the appropriate configuration (`launchd` plist on macOS, `systemd` user service on Linux, or CurrentVersion\Run registry key on Windows) and loads and starts the background service immediately. If a version of the service is already installed, running this will cleanly stop and remove it first, then register and start the latest version.
 
 *   **Uninstall Service**:
     ```bash
