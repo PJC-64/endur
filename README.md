@@ -42,7 +42,7 @@ Compared to the upstream `dura` repository, **Endur** adds the following feature
 
 ## How to use
 
-Running the daemon manually in the background (`endur serve &`) is **deprecated** in favor of running it as an OS-level background service.
+Running the daemon manually in the background (`endur serve &`) is **deprecated** (and will be removed in a future release) in favor of running it as an OS-level background service.
 
 ### 1. Install & Start the Startup Service
 To register and start the daemon as a startup service:
@@ -56,7 +56,7 @@ If you ever need to stop and remove the startup service:
 $ endur service uninstall
 ```
 
-*(Note: The raw `endur serve` and `endur kill` commands are deprecated and intended only for ad-hoc debugging sessions.)*
+*(Note: The raw `endur serve` and `endur kill` commands are deprecated, will be removed in a future release, and are intended only for ad-hoc debugging sessions.)*
 
 ### 2. Monitor repositories
 Let `endur` know which repositories to watch:
