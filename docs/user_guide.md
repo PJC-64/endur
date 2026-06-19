@@ -6,7 +6,7 @@ Endur is a background daemon that monitors your active Git repositories and auto
 
 ## Key Features
 
-1. **Zero-Configuration Backups**: Simply run `endur serve` and `endur watch` a repository.
+1. **Zero-Configuration Backups**: Simply set up the background service (via `endur service install`) and `endur watch` a repository.
 2. **Instant Event-Driven Capture**: Endur uses native filesystem events (`notify` crate) to immediately capture snapshots of your changes with a 500ms debounce window. No CPU-heavy polling loops.
 3. **Smart Git Filtering**: Respects your `.gitignore` rules and ignores the `.git/` folder automatically.
 4. **Zero-Side-Effects Staging**: Uses an isolated index (`.git/endur_index`) so your primary Git index (`git status` and staging) is never touched during backups.
@@ -132,7 +132,9 @@ This prints the package version, compiled features (TUI backend, IPC format, loc
 
 ### 7. Start the Daemon Manually (`serve`) [Deprecated]
 > [!WARNING]
-> Running the daemon manually is deprecated in favor of `endur service install`. It should only be used for ad-hoc debugging sessions.
+> Running the daemon manually in the foreground/background (via `endur serve`) is now considered **deprecated** and will be removed in a future release. Running the daemon as an OS-level background service (via `endur service install`) is the recommended approach.
+>
+> Using `endur serve` directly should only be done for ad-hoc troubleshooting or debugging sessions.
 
 To start the daemon process directly in your shell:
 ```bash
@@ -145,6 +147,8 @@ endur serve &
 
 ### 8. Stop the Daemon Manually (`kill`) [Deprecated]
 > [!WARNING]
+> The raw `endur kill` command is **deprecated** and will be removed in a future release.
+>
 > If the daemon is running as a system service, it will be automatically restarted by the OS. Use `endur service uninstall` to permanently stop the service.
 
 To safely stop a daemon running in direct/debugging mode:
