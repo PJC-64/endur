@@ -689,30 +689,12 @@ fn get_commit_diff(repo_path: &std::path::Path, commit_hash: &str) -> String {
     "Failed to load commit diff.".to_string()
 }
 
-pub async fn run_control_center(
-    startup_tab: Option<ControlCenterTab>,
-    initial_repo_path: Option<PathBuf>,
-) -> Result<(), Box<dyn std::error::Error>> {
+pub async fn run_control_center() -> Result<(), Box<dyn std::error::Error>> {
     let mut repos: Vec<PathBuf> = Config::load().git_repos().collect();
     repos.sort();
 
-    let mut repos_state = TuiState::new(repos);
-    if let Some(ref path) = initial_repo_path {
-        if let Ok(abs_path) = std::fs::canonicalize(path) {
-            if let Some(idx) = repos_state.repos.iter().position(|r| r == &abs_path) {
-                repos_state.repo_state.select(Some(idx));
-                repos_state.reload_snapshots();
-            }
-        }
-    }
-
+    let repos_state = TuiState::new(repos);
     let mut state = ControlCenterState::new(repos_state);
-    if let Some(tab) = startup_tab {
-        state.tab = tab;
-        if tab == ControlCenterTab::Snapshots {
-            state.tab2_focus = Tab2Focus::Snapshots;
-        }
-    }
 
     let _guard = TerminalGuard::create()?;
     let backend = CrosstermBackend::new(io::stdout());

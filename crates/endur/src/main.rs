@@ -411,22 +411,14 @@ async fn main() {
             }
         }
         Some(("tui", _)) => {
-            if let Err(e) = endur::tui::run_control_center(None, None).await {
+            if let Err(e) = endur::tui::run_control_center().await {
                 eprintln!("Failed to run interactive TUI: {e}");
                 process::exit(1);
             }
         }
         Some(("restore", arg_matches)) => {
             if arg_matches.get_flag("interactive") {
-                let initial_dir = arg_matches
-                    .get_one::<String>("directory")
-                    .map(std::path::PathBuf::from)
-                    .unwrap_or_else(|| std::env::current_dir().unwrap_or_default());
-
-                if let Err(e) = endur::tui::run_control_center(
-                    Some(endur::tui::ControlCenterTab::Snapshots),
-                    Some(initial_dir),
-                ).await {
+                if let Err(e) = endur::tui::run_control_center().await {
                     eprintln!("Failed to run interactive TUI: {e}");
                     process::exit(1);
                 }
