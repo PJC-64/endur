@@ -1675,7 +1675,16 @@
     color: #fca5a5;
   }
 
-  .snapshots-list, .files-list {
+  .snapshots-list {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+    overflow-y: auto;
+    flex-grow: 1;
+    max-height: 530px;
+  }
+
+  .files-list {
     display: flex;
     flex-direction: column;
     gap: 0.5rem;
