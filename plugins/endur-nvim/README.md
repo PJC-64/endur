@@ -1,13 +1,6 @@
 # endur-nvim
 
-> [!WARNING]
-> **Active Development**: This plugin and the core `endur` tool are currently in active development. Use is not as yet recommended for production environments.
-
-A Neovim plugin for the [endur](https://github.com/PJC-64/endur) Git auto-backup tool.
-
-## NOTE - UNDER DEVELOPMENT
-
-This plugin is currently under development and should only be used with caution.  Please submit any bugs.
+A Neovim integration plugin for the [endur](https://github.com/PJC-64/endur) (v1.2.0+) Git auto-backup tool. It automatically monitors active repositories, provides Telescope snapshot pickers, and displays real-time backup states inside your statusline.
 
 ## Features
 - **Auto-Watch**: Automatically registers git repositories with `endur watch` on buffer write events.
