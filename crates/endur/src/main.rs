@@ -411,35 +411,36 @@ async fn main() {
             }
         }
         Some(("tui", _)) => {
-            if let Err(e) = endur::tui::run_control_center().await {
+            if let Err(e) = endur::tui::run_control_center(None, None).await {
                 eprintln!("Failed to run interactive TUI: {e}");
                 process::exit(1);
             }
         }
         Some(("restore", arg_matches)) => {
-            let (dir, hash, files_to_restore) = if arg_matches.get_flag("interactive") {
-                match endur::tui::run_interactive() {
-                    Ok(Some((repo, hash, files))) => (repo, hash, files),
-                    Ok(None) => {
-                        println!("Interactive restore cancelled.");
-                        return;
-                    }
-                    Err(e) => {
-                        println!("Failed to run interactive TUI: {e}");
-                        process::exit(1);
-                    }
-                }
-            } else {
-                let dir =
-                    Path::new(arg_matches.get_one::<String>("directory").unwrap()).to_path_buf();
-                let hash = arg_matches.get_one::<String>("hash").unwrap().to_string();
-                let files = arg_matches
-                    .get_many::<String>("files")
-                    .map(|vals| vals.map(|s| s.to_string()).collect::<Vec<String>>());
-                (dir, hash, files)
-            };
+            if arg_matches.get_flag("interactive") {
+                let initial_dir = arg_matches
+                    .get_one::<String>("directory")
+                    .map(std::path::PathBuf::from)
+                    .unwrap_or_else(|| std::env::current_dir().unwrap_or_default());
 
-            match snapshots::restore(&dir, &hash, files_to_restore.as_deref()) {
+                if let Err(e) = endur::tui::run_control_center(
+                    Some(endur::tui::ControlCenterTab::Snapshots),
+                    Some(initial_dir),
+                ).await {
+                    eprintln!("Failed to run interactive TUI: {e}");
+                    process::exit(1);
+                }
+                return;
+            }
+
+            let dir =
+                Path::new(arg_matches.get_one::<String>("directory").unwrap()).to_path_buf();
+            let hash = arg_matches.get_one::<String>("hash").unwrap().to_string();
+            let files = arg_matches
+                .get_many::<String>("files")
+                .map(|vals| vals.map(|s| s.to_string()).collect::<Vec<String>>());
+
+            match snapshots::restore(&dir, &hash, files.as_deref()) {
                 Ok(changes) => {
                     if changes.is_empty() {
                         println!("No files needed to be restored or changed for commit {hash}");
