@@ -1705,7 +1705,7 @@ fn draw_control_center(f: &mut ratatui::Frame, state: &ControlCenterState) {
     let chunks = Layout::default()
         .direction(Direction::Vertical)
         .constraints([
-            Constraint::Length(5), // Header (needs 5 lines for mode + status, keys, and alerts)
+            Constraint::Length(6), // Header (needs 6 lines for border + status, keys, info, and notes)
             Constraint::Length(1), // Tabs
             Constraint::Min(10),   // Active Pane
             Constraint::Length(9), // Footer (logs + messages + help)
@@ -1889,6 +1889,8 @@ fn draw_control_center(f: &mut ratatui::Frame, state: &ControlCenterState) {
                 keys_spans.push(Span::styled("[i]", Style::default().fg(Color::Yellow)));
                 keys_spans.push(Span::raw(" Install Service  "));
             } else {
+                keys_spans.push(Span::styled("[i]", Style::default().fg(Color::Yellow)));
+                keys_spans.push(Span::raw(" Reinstall Service  "));
                 keys_spans.push(Span::styled("[s]", Style::default().fg(Color::Yellow)));
                 keys_spans.push(Span::raw(" Start Service  "));
                 keys_spans.push(Span::styled("[k]", Style::default().fg(Color::Yellow)));
@@ -1948,6 +1950,15 @@ fn draw_control_center(f: &mut ratatui::Frame, state: &ControlCenterState) {
                 }
             }
             header_lines.push(Line::from(info_spans));
+
+            // Line 4: Note / Description
+            header_lines.push(Line::from(vec![
+                Span::styled(" Note: ", Style::default().fg(Color::DarkGray)),
+                Span::styled(
+                    "Installing/Reinstalling stops & removes any existing service before installing the latest version.",
+                    Style::default().fg(Color::DarkGray),
+                ),
+            ]));
         }
     }
 

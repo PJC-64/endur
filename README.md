@@ -49,7 +49,7 @@ To register and start the daemon as a startup service:
 ```bash
 $ endur service install
 ```
-This automatically registers the daemon to start on login (using `launchd` on macOS, `systemd` on Linux, or the registry on Windows) and starts the background execution immediately.
+This automatically registers the daemon to start on login (using `launchd` on macOS, `systemd` on Linux, or the registry on Windows) and starts the background execution immediately. (If a version of the service is already installed, running this will cleanly stop and remove it first, then register and start the latest version.)
 
 If you ever need to stop and remove the startup service:
 ```bash
