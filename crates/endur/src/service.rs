@@ -27,6 +27,13 @@ fn get_uid() -> Result<String> {
 
 #[cfg(any(target_os = "macos", target_os = "linux", target_os = "windows"))]
 fn get_endur_cli_path() -> std::path::PathBuf {
+    let exe_suffix = if cfg!(target_os = "windows") {
+        ".exe"
+    } else {
+        ""
+    };
+    let bin_name = format!("endur{}", exe_suffix);
+
     if let Ok(exe_path) = env::current_exe() {
         if let Some(file_name) = exe_path.file_name() {
             let name_str = file_name.to_string_lossy().to_lowercase();
@@ -35,19 +42,19 @@ fn get_endur_cli_path() -> std::path::PathBuf {
             }
         }
         if let Some(home) = dirs::home_dir() {
-            let cargo_bin = home.join(".cargo").join("bin").join("endur");
+            let cargo_bin = home.join(".cargo").join("bin").join(&bin_name);
             if cargo_bin.exists() {
                 return cargo_bin;
             }
         }
         if let Some(parent) = exe_path.parent() {
-            let local_bin = parent.join("endur");
+            let local_bin = parent.join(&bin_name);
             if local_bin.exists() {
                 return local_bin;
             }
         }
     }
-    std::path::PathBuf::from("endur")
+    std::path::PathBuf::from(bin_name)
 }
 
 #[cfg(target_os = "macos")]
