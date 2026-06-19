@@ -1176,6 +1176,7 @@ dependencies = [
  "tauri-build",
  "tauri-plugin-opener",
  "tokio",
+ "walkdir",
 ]
 
 [[package]]

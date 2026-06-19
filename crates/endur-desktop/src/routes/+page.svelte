@@ -15,6 +15,14 @@
   let watchlistError = $state("");
   let watchlistMessage = $state("");
 
+  // File Selector State
+  let selectorCurrentDir = $state("");
+  let selectorEntries: { name: string, path: string, is_repo: boolean }[] = $state([]);
+  let selectorLoading = $state(false);
+  let selectorError = $state("");
+  let baseRootDir = $state("");
+  let isCurrentDirRepo = $state(false);
+
   // Backups State
   let selectedRepo = $state("");
   let snapshots: any[] = $state([]);
@@ -124,6 +132,63 @@
       watchlistMessage = `Successfully added watch for: ${newRepoPath}`;
       newRepoPath = "";
       await loadRepos();
+      if (selectorCurrentDir) {
+        await navigateSelector(selectorCurrentDir);
+      }
+    } catch (e: any) {
+      watchlistError = e.toString();
+    }
+  }
+
+  async function initSelector() {
+    try {
+      selectorLoading = true;
+      selectorError = "";
+      baseRootDir = await invoke("get_base_root_dir");
+      await navigateSelector(baseRootDir);
+    } catch (e: any) {
+      selectorError = e.toString();
+    } finally {
+      selectorLoading = false;
+    }
+  }
+
+  async function navigateSelector(dir: string) {
+    try {
+      selectorLoading = true;
+      selectorError = "";
+      selectorCurrentDir = dir;
+      selectorEntries = await invoke("get_selector_entries", { currentDir: dir });
+      isCurrentDirRepo = await invoke("is_git_repo", { path: dir });
+    } catch (e: any) {
+      selectorError = e.toString();
+    } finally {
+      selectorLoading = false;
+    }
+  }
+
+  async function goUpSelector() {
+    const parts = selectorCurrentDir.split(/[\/\\]/);
+    if (parts.length > 1) {
+      parts.pop();
+      let parent = parts.join("/") || "/";
+      if (parent.endsWith(":")) {
+        parent += "/";
+      }
+      await navigateSelector(parent);
+    }
+  }
+
+  async function watchPath(path: string) {
+    try {
+      watchlistError = "";
+      watchlistMessage = "";
+      await invoke("toggle_watch_repo", { path, watch: true });
+      watchlistMessage = `Successfully added watch for: ${path}`;
+      await loadRepos();
+      if (selectorCurrentDir) {
+        await navigateSelector(selectorCurrentDir);
+      }
     } catch (e: any) {
       watchlistError = e.toString();
     }
@@ -333,6 +398,7 @@
     loadDaemonStatus();
     loadRepos();
     loadLogs();
+    initSelector();
     
     loadServiceStatus();
 
@@ -609,44 +675,110 @@
           <p>Register or unwatch directory paths from backups.</p>
         </header>
 
-        <!-- Watch Repo Form -->
-        <div class="card glass add-repo-card">
-          <h2>Monitor New Repository</h2>
-          <form class="repo-form" onsubmit={(e) => { e.preventDefault(); addRepo(); }}>
-            <input 
-              type="text" 
-              placeholder="Enter absolute repository path..." 
-              bind:value={newRepoPath} 
-              class="path-input"
-            />
-            <button type="submit" class="action-btn">Watch Folder</button>
-          </form>
-          {#if watchlistMessage}
-            <p class="msg-success">{watchlistMessage}</p>
-          {/if}
-          {#if watchlistError}
-            <p class="msg-error">{watchlistError}</p>
-          {/if}
-        </div>
-
-        <!-- Repos List -->
-        <div class="card glass repos-list-card">
-          <h2>Active Repositories</h2>
-          {#if watchedRepos.length === 0}
-            <p class="empty-text">No active repositories registered. Use the watch input above to add folders.</p>
-          {:else}
-            <div class="repos-list">
-              {#each watchedRepos as path}
-                <div class="repo-item">
-                  <div class="repo-info">
-                    <span class="folder-icon">📁</span>
-                    <span class="repo-path">{path}</span>
+        <div class="repos-layout">
+          <!-- Left Column: Active Monitored Repositories -->
+          <div class="card glass repos-list-card">
+            <h2>Active Repositories</h2>
+            {#if watchedRepos.length === 0}
+              <p class="empty-text">No active repositories registered. Use the browser on the right to add folders.</p>
+            {:else}
+              <div class="repos-list">
+                {#each watchedRepos as path}
+                  <div class="repo-item">
+                    <div class="repo-info">
+                      <span class="folder-icon">📁</span>
+                      <span class="repo-path" title={path}>{path}</span>
+                    </div>
+                    <button class="unwatch-btn" onclick={() => removeRepo(path)}>Unwatch</button>
                   </div>
-                  <button class="unwatch-btn" onclick={() => removeRepo(path)}>Unwatch</button>
+                {/each}
+              </div>
+            {/if}
+          </div>
+
+          <!-- Right Column: Interactive File Selector & Manual Form -->
+          <div class="card glass add-repo-card">
+            <h2>Monitor New Repository</h2>
+            
+            <!-- File Selector Component -->
+            <div class="selector-component">
+              <div class="selector-path-bar">
+                <span class="path-label" title={selectorCurrentDir}>Current: {selectorCurrentDir || "Loading..."}</span>
+                <div class="path-bar-actions">
+                  <button class="btn-sm" onclick={goUpSelector} disabled={selectorLoading || !selectorCurrentDir || selectorCurrentDir === "/"}>↱ Up</button>
+                  <button class="btn-sm" onclick={() => navigateSelector(baseRootDir)} disabled={selectorLoading || !baseRootDir} title="Go to default base root directory">🏠 Base</button>
                 </div>
-              {/each}
+              </div>
+
+              {#if selectorLoading}
+                <div class="selector-status">Loading directory entries...</div>
+              {:else if selectorError}
+                <div class="selector-status error">{selectorError}</div>
+              {:else}
+                <div class="selector-list">
+                  {#if isCurrentDirRepo}
+                    <div class="selector-item current-dir-repo">
+                      <span class="folder-icon-repo">●</span>
+                      <span class="repo-name-label">Current Folder is Git Repo</span>
+                      <button 
+                        class="watch-action-btn" 
+                        onclick={() => watchPath(selectorCurrentDir)}
+                        disabled={watchedRepos.includes(selectorCurrentDir)}
+                      >
+                        {watchedRepos.includes(selectorCurrentDir) ? "Watched" : "Watch Current"}
+                      </button>
+                    </div>
+                  {/if}
+
+                  {#if selectorEntries.length === 0}
+                    <div class="empty-selector">No subdirectories containing Git repositories found.</div>
+                  {:else}
+                    {#each selectorEntries as entry}
+                      <div class="selector-row">
+                        <div class="entry-info" onclick={() => navigateSelector(entry.path)} role="button" tabindex="0" onkeydown={(e) => { if (e.key === 'Enter') navigateSelector(entry.path); }}>
+                          <span class="folder-icon">📁</span>
+                          <span class="entry-name">{entry.name}</span>
+                          {#if entry.is_repo}
+                            <span class="repo-badge">git</span>
+                          {/if}
+                        </div>
+                        {#if entry.is_repo}
+                          <button 
+                            class="watch-action-btn"
+                            onclick={() => watchPath(entry.path)}
+                            disabled={watchedRepos.includes(entry.path)}
+                          >
+                            {watchedRepos.includes(entry.path) ? "Watched" : "Watch"}
+                          </button>
+                        {/if}
+                      </div>
+                    {/each}
+                  {/if}
+                </div>
+              {/if}
             </div>
-          {/if}
+
+            <!-- Fallback Manual Input -->
+            <div class="manual-input-box">
+              <h3>Or enter path manually:</h3>
+              <form class="repo-form" onsubmit={(e) => { e.preventDefault(); addRepo(); }}>
+                <input 
+                  type="text" 
+                  placeholder="Enter absolute repository path..." 
+                  bind:value={newRepoPath} 
+                  class="path-input"
+                />
+                <button type="submit" class="action-btn">Watch Folder</button>
+              </form>
+            </div>
+
+            {#if watchlistMessage}
+              <p class="msg-success">{watchlistMessage}</p>
+            {/if}
+            {#if watchlistError}
+              <p class="msg-error">{watchlistError}</p>
+            {/if}
+          </div>
         </div>
       </div>
     {/if}
@@ -1154,44 +1286,29 @@
   }
 
   /* Repos layout */
-  .repo-form {
+  .repos-layout {
+    display: grid;
+    grid-template-columns: 1fr 1.2fr;
+    gap: 1.5rem;
+    height: calc(100vh - 180px);
+    overflow: hidden;
+  }
+
+  .repos-list-card, .add-repo-card {
     display: flex;
-    gap: 0.75rem;
-  }
-
-  .path-input {
-    flex-grow: 1;
-    background-color: #090d16;
-    border: 1px solid rgba(255, 255, 255, 0.08);
-    color: #f8fafc;
-    padding: 0.6rem 1rem;
-    border-radius: 6px;
-    font-family: 'JetBrains Mono', monospace;
-    font-size: 0.875rem;
-    outline: none;
-  }
-
-  .path-input:focus {
-    border-color: #06b6d4;
-  }
-
-  .msg-success {
-    color: #10b981;
-    font-size: 0.875rem;
-    margin: 0.75rem 0 0 0;
-  }
-
-  .msg-error {
-    color: #ef4444;
-    font-size: 0.875rem;
-    margin: 0.75rem 0 0 0;
+    flex-direction: column;
+    height: 100%;
+    overflow: hidden;
   }
 
   .repos-list {
     display: flex;
     flex-direction: column;
     gap: 0.75rem;
+    overflow-y: auto;
+    flex-grow: 1;
     margin-top: 1rem;
+    padding-right: 0.25rem;
   }
 
   .repo-item {
@@ -1238,6 +1355,240 @@
     text-align: center;
     margin: 2rem 0;
     font-size: 0.95rem;
+  }
+
+  /* File Selector Component */
+  .selector-component {
+    display: flex;
+    flex-direction: column;
+    flex-grow: 1;
+    overflow: hidden;
+    background-color: rgba(11, 15, 25, 0.4);
+    border: 1px solid rgba(255, 255, 255, 0.05);
+    border-radius: 8px;
+    margin-bottom: 1rem;
+  }
+
+  .selector-path-bar {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    background-color: rgba(255, 255, 255, 0.02);
+    border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+    padding: 0.6rem 0.8rem;
+    gap: 1rem;
+  }
+
+  .path-label {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.85rem;
+    color: #06b6d4;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    flex-grow: 1;
+  }
+
+  .path-bar-actions {
+    display: flex;
+    gap: 0.5rem;
+    flex-shrink: 0;
+  }
+
+  .btn-sm {
+    background-color: rgba(255, 255, 255, 0.05);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    color: #cbd5e1;
+    padding: 0.3rem 0.6rem;
+    font-size: 0.75rem;
+    border-radius: 4px;
+    cursor: pointer;
+    font-weight: 500;
+    transition: all 0.2s ease;
+  }
+
+  .btn-sm:hover:not(:disabled) {
+    background-color: rgba(255, 255, 255, 0.1);
+    border-color: rgba(255, 255, 255, 0.2);
+    color: #f8fafc;
+  }
+
+  .btn-sm:disabled {
+    opacity: 0.4;
+    cursor: not-allowed;
+  }
+
+  .selector-status {
+    padding: 2rem 1rem;
+    text-align: center;
+    color: #64748b;
+    font-size: 0.9rem;
+  }
+
+  .selector-status.error {
+    color: #ef4444;
+  }
+
+  .selector-list {
+    flex-grow: 1;
+    overflow-y: auto;
+    padding: 0.5rem;
+    display: flex;
+    flex-direction: column;
+    gap: 0.4rem;
+  }
+
+  .selector-item.current-dir-repo {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    background-color: rgba(6, 182, 212, 0.06);
+    border: 1px dashed rgba(6, 182, 212, 0.3);
+    border-radius: 6px;
+    padding: 0.6rem 0.8rem;
+    margin-bottom: 0.5rem;
+  }
+
+  .folder-icon-repo {
+    color: #06b6d4;
+    font-size: 0.75rem;
+    margin-right: 0.5rem;
+  }
+
+  .repo-name-label {
+    font-size: 0.85rem;
+    font-weight: 600;
+    color: #06b6d4;
+    flex-grow: 1;
+  }
+
+  .watch-action-btn {
+    background-color: #06b6d4;
+    color: #0f172a;
+    border: none;
+    border-radius: 4px;
+    padding: 0.35rem 0.75rem;
+    font-size: 0.75rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s ease;
+  }
+
+  .watch-action-btn:hover:not(:disabled) {
+    background-color: #22d3ee;
+    box-shadow: 0 0 8px rgba(6, 182, 212, 0.4);
+  }
+
+  .watch-action-btn:disabled {
+    background-color: rgba(255, 255, 255, 0.05);
+    color: #64748b;
+    cursor: not-allowed;
+    box-shadow: none;
+  }
+
+  .empty-selector {
+    color: #64748b;
+    text-align: center;
+    padding: 2rem 1rem;
+    font-size: 0.85rem;
+  }
+
+  .selector-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0.4rem 0.6rem;
+    border-radius: 6px;
+    background-color: rgba(255, 255, 255, 0.01);
+    border: 1px solid rgba(255, 255, 255, 0.02);
+    transition: all 0.15s ease;
+  }
+
+  .selector-row:hover {
+    background-color: rgba(255, 255, 255, 0.03);
+    border-color: rgba(255, 255, 255, 0.06);
+  }
+
+  .entry-info {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    cursor: pointer;
+    flex-grow: 1;
+    overflow: hidden;
+    padding: 0.25rem 0;
+  }
+
+  .folder-icon {
+    font-size: 0.9rem;
+    flex-shrink: 0;
+  }
+
+  .entry-name {
+    font-size: 0.85rem;
+    color: #e2e8f0;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .repo-badge {
+    background-color: rgba(99, 102, 241, 0.15);
+    color: #818cf8;
+    border: 1px solid rgba(99, 102, 241, 0.3);
+    font-size: 0.7rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    padding: 0.05rem 0.3rem;
+    border-radius: 4px;
+    letter-spacing: 0.05em;
+  }
+
+  .manual-input-box {
+    margin-top: auto;
+    border-top: 1px solid rgba(255, 255, 255, 0.05);
+    padding-top: 1rem;
+    flex-shrink: 0;
+  }
+
+  .manual-input-box h3 {
+    margin: 0 0 0.5rem 0;
+    font-size: 0.9rem;
+    font-weight: 500;
+    color: #94a3b8;
+  }
+
+  .repo-form {
+    display: flex;
+    gap: 0.75rem;
+  }
+
+  .path-input {
+    flex-grow: 1;
+    background-color: #090d16;
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    color: #f8fafc;
+    padding: 0.6rem 1rem;
+    border-radius: 6px;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.875rem;
+    outline: none;
+  }
+
+  .path-input:focus {
+    border-color: #06b6d4;
+  }
+
+  .msg-success {
+    color: #10b981;
+    font-size: 0.875rem;
+    margin: 0.75rem 0 0 0;
+  }
+
+  .msg-error {
+    color: #ef4444;
+    font-size: 0.875rem;
+    margin: 0.75rem 0 0 0;
   }
 
   /* Backups View Layout */

@@ -288,3 +288,102 @@ pub fn control_service(action: String) -> Result<(), String> {
         _ => Err("Invalid service action".to_string()),
     }
 }
+
+#[derive(Serialize)]
+pub struct SelectorEntry {
+    pub name: String,
+    pub path: String,
+    pub is_repo: bool,
+}
+
+#[tauri::command]
+pub fn get_base_root_dir() -> Result<String, String> {
+    let config = Config::load();
+    let base_root = if let Some(ref br) = config.base_root {
+        let expanded = if let Some(stripped) = br.strip_prefix("~/") {
+            if let Some(home) = dirs::home_dir() {
+                home.join(stripped)
+            } else {
+                PathBuf::from(br)
+            }
+        } else {
+            PathBuf::from(br)
+        };
+        if expanded.exists() {
+            expanded
+        } else {
+            dirs::home_dir()
+                .map(|h| h.join("Development"))
+                .unwrap_or_else(|| PathBuf::from("/"))
+        }
+    } else {
+        dirs::home_dir()
+            .map(|h| h.join("Development"))
+            .unwrap_or_else(|| PathBuf::from("/"))
+    };
+    Ok(base_root.to_string_lossy().to_string())
+}
+
+fn contains_git_repo(path: &Path) -> bool {
+    if path.join(".git").is_dir() {
+        return true;
+    }
+    let walk = walkdir::WalkDir::new(path)
+        .max_depth(5)
+        .into_iter()
+        .filter_map(|e| e.ok());
+    for entry in walk {
+        if entry.file_type().is_dir()
+            && entry
+                .path()
+                .file_name()
+                .map(|n| n == ".git")
+                .unwrap_or(false)
+        {
+            return true;
+        }
+    }
+    false
+}
+
+#[tauri::command]
+pub fn get_selector_entries(current_dir: String) -> Result<Vec<SelectorEntry>, String> {
+    let current = Path::new(&current_dir);
+    if !current.is_dir() {
+        return Err("Not a directory".to_string());
+    }
+
+    let mut entries = Vec::new();
+    if let Ok(dir_entries) = std::fs::read_dir(current) {
+        for entry in dir_entries.filter_map(|e| e.ok()) {
+            let path = entry.path();
+            if path.is_dir() {
+                if let Some(name) = path.file_name().and_then(|n| n.to_str()) {
+                    if name.starts_with('.') {
+                        continue;
+                    }
+                }
+                if contains_git_repo(&path) {
+                    let name = path
+                        .file_name()
+                        .map(|n| n.to_string_lossy().to_string())
+                        .unwrap_or_default();
+                    let is_repo = path.join(".git").is_dir();
+                    entries.push(SelectorEntry {
+                        name,
+                        path: path.to_string_lossy().to_string(),
+                        is_repo,
+                    });
+                }
+            }
+        }
+    }
+    entries.sort_by(|a, b| a.name.cmp(&b.name));
+    Ok(entries)
+}
+
+#[tauri::command]
+pub fn is_git_repo(path: String) -> Result<bool, String> {
+    let p = Path::new(&path);
+    Ok(p.join(".git").is_dir())
+}

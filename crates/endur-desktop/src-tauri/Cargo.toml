@@ -22,4 +22,5 @@ serde_json = "1"
 endur = { path = "../../endur" }
 dirs = "6.0.0"
 tokio = { version = "1", features = ["time"] }
+walkdir = "2.5.0"
 

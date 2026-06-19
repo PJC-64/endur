@@ -20,7 +20,10 @@ pub fn run() {
             commands::prune_snapshots,
             commands::is_service_installed,
             commands::is_service_running,
-            commands::control_service
+            commands::control_service,
+            commands::get_base_root_dir,
+            commands::get_selector_entries,
+            commands::is_git_repo
         ])
         .setup(|app| {
             let app_handle = app.handle().clone();
