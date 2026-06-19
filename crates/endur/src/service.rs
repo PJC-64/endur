@@ -59,6 +59,11 @@ fn get_endur_cli_path() -> std::path::PathBuf {
 
 #[cfg(target_os = "macos")]
 pub fn install() -> Result<()> {
+    if is_installed() {
+        println!("Service is already installed. Performing reinstallation...");
+        let _ = uninstall();
+    }
+
     let exe_path = get_endur_cli_path();
     let home = dirs::home_dir().ok_or_else(|| anyhow!("Could not determine home directory"))?;
     let launch_agents_dir = home.join("Library").join("LaunchAgents");
@@ -247,6 +252,11 @@ pub fn stop() -> Result<()> {
 
 #[cfg(target_os = "linux")]
 pub fn install() -> Result<()> {
+    if is_installed() {
+        println!("Service is already installed. Performing reinstallation...");
+        let _ = uninstall();
+    }
+
     let exe_path = get_endur_cli_path();
     let home = dirs::home_dir().ok_or_else(|| anyhow!("Could not determine home directory"))?;
     let systemd_dir = home.join(".config").join("systemd").join("user");
@@ -394,6 +404,11 @@ pub fn stop() -> Result<()> {
 
 #[cfg(target_os = "windows")]
 pub fn install() -> Result<()> {
+    if is_installed() {
+        println!("Service is already installed. Performing reinstallation...");
+        let _ = uninstall();
+    }
+
     let exe_path = get_endur_cli_path();
     let cmd_str = format!("\"{}\" serve", exe_path.to_string_lossy());
 
