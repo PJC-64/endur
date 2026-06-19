@@ -17,7 +17,13 @@ debug/
 !/review.md
 !plugins/**/*.md
 !patches/**/*.md
+!crates/**/*.md
 
 # debugging information from rustc on MSVC Windows
 *.pdb
 /.idea/
+
+# Local IDE configuration files
+/*.prj
+/*.pui
+/*.pui.pui

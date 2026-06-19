@@ -37,6 +37,8 @@ Compared to the upstream `dura` repository, **Endur** adds the following feature
 
 *   [User Guide](docs/user_guide.md): Comprehensive instructions on using and recovering with Endur.
 *   [Developer Guide](docs/developer_guide.md): Details on the internal architecture, event-driven loop, UDS socket IPC, and testing.
+*   [GUI User Guide](docs/gui_user_guide.md): Comprehensive guide to installing, configuring, and using the native Desktop GUI application.
+*   [GUI Developer Guide](docs/gui_developer_guide.md): Technical details on the Svelte 5 + Tauri desktop client architecture and IPC commands.
 
 ## How to use
 
