@@ -42,16 +42,23 @@ Compared to the upstream `dura` repository, **Endur** adds the following feature
 
 ## How to use
 
-Run it in the background:
+Running the daemon manually in the background (`endur serve &`) is **deprecated** in favor of running it as an OS-level background service.
 
+### 1. Install & Start the Startup Service
+To register and start the daemon as a startup service:
 ```bash
-$ endur serve &
+$ endur service install
+```
+This automatically registers the daemon to start on login (using `launchd` on macOS, `systemd` on Linux, or the registry on Windows) and starts the background execution immediately.
+
+If you ever need to stop and remove the startup service:
+```bash
+$ endur service uninstall
 ```
 
-The `serve` can happen in any directory. The `&` is Unix shell syntax to run the process in the background, meaning that you can start
-`endur` and then keep using the same terminal window while `endur` keeps running. You could also run `endur serve` in a
-window that you keep open.
+*(Note: The raw `endur serve` and `endur kill` commands are deprecated and intended only for ad-hoc debugging sessions.)*
 
+### 2. Monitor repositories
 Let `endur` know which repositories to watch:
 
 ```bash
@@ -75,15 +82,13 @@ $ git log --all
 `endur` produces a branch for every real commit you make and makes commits to that branch without impacting your working
 copy. You keep using Git exactly as you did before.
 
-
-Let `endur` know that it should stop running in the background with the `kill` command.
+### 3. Stop background execution (Direct Mode Only)
+To stop a daemon running in direct/debugging mode, run:
 
 ```bash
 $ endur kill
 ```
-
-The `kill` can happen in any directory. It indicates to the `serve`
-process that it should exit if there is a `serve` process running.
+*(Note: If the daemon is running as a system service, it will be automatically restarted by the OS. Use `endur service uninstall` to permanently remove/stop the service.)*
 
 ## How to recover
 

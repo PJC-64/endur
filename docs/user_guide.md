@@ -71,15 +71,20 @@ To avoid software conflicts and duplicate processes, the GUI implements a **hybr
 
 ## Command Reference
 
-### 1. Start the Daemon (`serve`)
-Endur runs as a background process. To start the daemon, run:
-```bash
-endur serve &
-```
-*   **Log File**: By default, `endur serve` produces absolutely no output to `stdout` or `stderr`, instead automatically logging to a file named `endur.log` inside your Endur cache home directory (e.g. `~/.cache/endur/endur.log` on macOS/Linux). You can configure a custom log location with the `--logfile <FILE>` option:
+### 1. Manage the Startup Service (`service`)
+Endur favors running as an OS-level background startup service rather than a manual command-line process. 
+
+*   **Install & Start Service**:
     ```bash
-    endur serve --logfile /path/to/custom.log &
+    endur service install
     ```
+    This writes the appropriate configuration (`launchd` plist on macOS, `systemd` user service on Linux, or CurrentVersion\Run registry key on Windows) and loads and starts the background service immediately.
+
+*   **Uninstall Service**:
+    ```bash
+    endur service uninstall
+    ```
+    This stops the background service and deletes the plist/service/registry configuration files.
 
 ### 2. Monitor a Repository (`watch`)
 To add a repository to the watch list, navigate to its directory and run:
@@ -101,7 +106,7 @@ Or specify the directory path:
 endur unwatch /path/to/my/project
 ```
 
-### 4. Check Daemon Status & configuration (`info`)
+### 4. Check Daemon Status & Configuration (`info`)
 To print the current configuration, list of watched repositories, and daemon status, run:
 ```bash
 endur info
@@ -111,11 +116,12 @@ Use `--detail` for more detailed information:
 endur info --detail
 ```
 
-### 5. Stop the Daemon (`kill`)
-To safely stop the background daemon process:
+### 5. Clean Up Configuration (`cleanup`)
+To remove any invalid or inaccessible repositories (e.g., deleted folders, non-git directories, or directories with permission errors) from your watch list, run:
 ```bash
-endur kill
+endur cleanup
 ```
+This automatically updates your Endur configuration and notifies the background daemon to reload.
 
 ### 6. Version and Features (`-v` / `--version`)
 To output detailed version and configuration info:
@@ -124,27 +130,27 @@ endur -v
 ```
 This prints the package version, compiled features (TUI backend, IPC format, lock strategy), and path locations of both Endur config and cache directories.
 
-### 7. Clean Up Configuration (`cleanup`)
-To remove any invalid or inaccessible repositories (e.g., deleted folders, non-git directories, or directories with permission errors) from your watch list, run:
+### 7. Start the Daemon Manually (`serve`) [Deprecated]
+> [!WARNING]
+> Running the daemon manually is deprecated in favor of `endur service install`. It should only be used for ad-hoc debugging sessions.
+
+To start the daemon process directly in your shell:
 ```bash
-endur cleanup
+endur serve &
 ```
-This automatically updates your Endur configuration and notifies the background daemon to reload.
-
-### 8. System Startup Service (`service`)
-You can configure Endur to start automatically when you log in (macOS) or boot the system (Linux) by installing it as a user-level startup service.
-
-*   **Install Service**:
+*   **Log File**: By default, `endur serve` produces absolutely no output to `stdout` or `stderr`, instead automatically logging to `endur.log` inside your Endur cache directory (e.g. `~/.cache/endur/endur.log`). You can configure a custom log location with the `--logfile <FILE>` option:
     ```bash
-    endur service install
+    endur serve --logfile /path/to/custom.log &
     ```
-    This writes the appropriate configuration (`launchd` plist on macOS, `systemd` user service on Linux) and loads/starts the background service.
 
-*   **Uninstall Service**:
-    ```bash
-    endur service uninstall
-    ```
-    This stops the background service and deletes the plist/service configuration files.
+### 8. Stop the Daemon Manually (`kill`) [Deprecated]
+> [!WARNING]
+> If the daemon is running as a system service, it will be automatically restarted by the OS. Use `endur service uninstall` to permanently stop the service.
+
+To safely stop a daemon running in direct/debugging mode:
+```bash
+endur kill
+```
 
 ### 9. Control Center TUI (`tui`)
 To open the comprehensive interactive TUI Control Center, run:
