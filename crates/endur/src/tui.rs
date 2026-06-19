@@ -663,6 +663,54 @@ pub enum ManagementMode {
     Service,
 }
 
+fn contains_git_repo(path: &std::path::Path) -> bool {
+    if path.join(".git").is_dir() {
+        return true;
+    }
+    let walk = walkdir::WalkDir::new(path)
+        .max_depth(5)
+        .into_iter()
+        .filter_map(|e| e.ok());
+    for entry in walk {
+        if entry.file_type().is_dir()
+            && entry
+                .path()
+                .file_name()
+                .map(|n| n == ".git")
+                .unwrap_or(false)
+        {
+            return true;
+        }
+    }
+    false
+}
+
+fn get_base_root() -> PathBuf {
+    let config = Config::load();
+    if let Some(ref br) = config.base_root {
+        let expanded = if let Some(stripped) = br.strip_prefix("~/") {
+            if let Some(home) = dirs::home_dir() {
+                home.join(stripped)
+            } else {
+                PathBuf::from(br)
+            }
+        } else {
+            PathBuf::from(br)
+        };
+        if expanded.exists() {
+            return expanded;
+        }
+    }
+    if let Some(home) = dirs::home_dir() {
+        let dev = home.join("Development");
+        if dev.exists() {
+            return dev;
+        }
+        return home;
+    }
+    PathBuf::from("/")
+}
+
 pub struct ControlCenterState {
     pub tab: ControlCenterTab,
     pub repos_state: TuiState,
@@ -676,6 +724,12 @@ pub struct ControlCenterState {
     pub management_mode: ManagementMode,
     pub service_installed: bool,
     pub service_running: bool,
+
+    pub file_selector_active: bool,
+    pub selector_current_dir: PathBuf,
+    pub selector_entries: Vec<PathBuf>,
+    pub selector_selected_idx: usize,
+    pub selector_list_state: ListState,
 
     pub logs: Vec<String>,
     pub logs_scroll: u16,
@@ -706,6 +760,8 @@ impl ControlCenterState {
         let service_installed = crate::service::is_installed();
         let service_running = crate::service::is_running().unwrap_or(false);
 
+        let base_root = get_base_root();
+
         let mut state = Self {
             tab: ControlCenterTab::Repos,
             repos_state,
@@ -717,6 +773,11 @@ impl ControlCenterState {
             management_mode: ManagementMode::Direct,
             service_installed,
             service_running,
+            file_selector_active: false,
+            selector_current_dir: base_root,
+            selector_entries: Vec::new(),
+            selector_selected_idx: 0,
+            selector_list_state: ListState::default(),
             logs: initial_logs,
             logs_scroll: 0,
             preview_scroll: 0,
@@ -748,6 +809,45 @@ impl ControlCenterState {
     pub fn show_message(&mut self, msg: String) {
         self.message = Some(msg);
         self.message_time = Some(std::time::Instant::now());
+    }
+
+    pub fn update_selector_entries(&mut self) {
+        let current = &self.selector_current_dir;
+        let mut entries = Vec::new();
+
+        // 1. Option to watch current directory if it is a git repo itself
+        if current.join(".git").is_dir() {
+            entries.push(current.clone());
+        }
+
+        // 2. Option to go to parent directory
+        if let Some(parent) = current.parent() {
+            entries.push(parent.to_path_buf());
+        }
+
+        // 3. Subdirectories containing git repos
+        let mut subdirs = Vec::new();
+        if let Ok(dir_entries) = std::fs::read_dir(current) {
+            for entry in dir_entries.filter_map(|e| e.ok()) {
+                let path = entry.path();
+                if path.is_dir() {
+                    if let Some(name) = path.file_name().and_then(|n| n.to_str()) {
+                        if name.starts_with('.') {
+                            continue;
+                        }
+                    }
+                    if contains_git_repo(&path) {
+                        subdirs.push(path);
+                    }
+                }
+            }
+        }
+        subdirs.sort();
+        entries.extend(subdirs);
+
+        self.selector_entries = entries;
+        self.selector_selected_idx = 0;
+        self.selector_list_state.select(Some(0));
     }
 
     pub fn get_current_preview_text(&self) -> String {
@@ -1104,7 +1204,82 @@ pub async fn run_control_center() -> Result<(), Box<dyn std::error::Error>> {
             }
             // Key events
             Some(key) = key_rx.recv() => {
-                if state.input_mode {
+                if state.file_selector_active {
+                    match key.code {
+                        KeyCode::Esc => {
+                            state.file_selector_active = false;
+                        }
+                        KeyCode::Up => {
+                            if state.selector_selected_idx > 0 {
+                                state.selector_selected_idx -= 1;
+                                state.selector_list_state.select(Some(state.selector_selected_idx));
+                            }
+                        }
+                        KeyCode::Down => {
+                            if !state.selector_entries.is_empty() && state.selector_selected_idx < state.selector_entries.len() - 1 {
+                                state.selector_selected_idx += 1;
+                                state.selector_list_state.select(Some(state.selector_selected_idx));
+                            }
+                        }
+                        KeyCode::Enter if !state.selector_entries.is_empty() => {
+                            let selected_path = state.selector_entries[state.selector_selected_idx].clone();
+                            if selected_path == state.selector_current_dir {
+                                // Watch current directory!
+                                let path_str = selected_path.to_string_lossy().to_string();
+                                let mut config = crate::config::Config::load();
+                                if !config.repos.contains_key(&path_str) {
+                                    if let Err(e) = config.set_watch(path_str.clone(), crate::config::WatchConfig::default()) {
+                                        state.show_message(format!("Failed to watch: {}", e));
+                                    } else {
+                                        config.save();
+                                        let _ = crate::poller::send_uds_command("reload").await;
+                                        state.show_message(format!("Started watching {}", path_str));
+                                        let mut new_repos: Vec<PathBuf> = crate::config::Config::load().git_repos().collect();
+                                        new_repos.sort();
+                                        state.repos_state.repos = new_repos;
+                                        state.file_selector_active = false;
+                                    }
+                                } else {
+                                    state.show_message("Already watching this repository.".to_string());
+                                }
+                            } else if Some(selected_path.as_path()) == state.selector_current_dir.parent() {
+                                // Go to parent directory
+                                state.selector_current_dir = selected_path;
+                                state.update_selector_entries();
+                            } else {
+                                // Go to subdirectory
+                                state.selector_current_dir = selected_path;
+                                state.update_selector_entries();
+                            }
+                        }
+                        KeyCode::Char(' ') if !state.selector_entries.is_empty() => {
+                            // Watch highlighted folder (Space bar)
+                            let selected_path = state.selector_entries[state.selector_selected_idx].clone();
+                            if selected_path.join(".git").is_dir() {
+                                let path_str = selected_path.to_string_lossy().to_string();
+                                let mut config = crate::config::Config::load();
+                                if !config.repos.contains_key(&path_str) {
+                                    if let Err(e) = config.set_watch(path_str.clone(), crate::config::WatchConfig::default()) {
+                                        state.show_message(format!("Failed to watch: {}", e));
+                                    } else {
+                                        config.save();
+                                        let _ = crate::poller::send_uds_command("reload").await;
+                                        state.show_message(format!("Started watching {}", path_str));
+                                        let mut new_repos: Vec<PathBuf> = crate::config::Config::load().git_repos().collect();
+                                        new_repos.sort();
+                                        state.repos_state.repos = new_repos;
+                                        state.file_selector_active = false;
+                                    }
+                                } else {
+                                    state.show_message("Already watching this repository.".to_string());
+                                }
+                            } else {
+                                state.show_message("Selected folder is not a Git repository.".to_string());
+                            }
+                        }
+                        _ => {}
+                    }
+                } else if state.input_mode {
                     match key.code {
                         KeyCode::Esc => {
                             state.input_mode = false;
@@ -1313,8 +1488,9 @@ pub async fn run_control_center() -> Result<(), Box<dyn std::error::Error>> {
                                         KeyCode::Up => state.repos_state.prev_repo(),
                                         KeyCode::Down => state.repos_state.next_repo(),
                                         KeyCode::Char('a') => {
-                                            state.input_mode = true;
-                                            state.input_buffer.clear();
+                                            state.file_selector_active = true;
+                                            state.selector_current_dir = get_base_root();
+                                            state.update_selector_entries();
                                         }
                                         KeyCode::Char('d') => {
                                             if let Some(idx) = state.repos_state.selected_repo_idx() {
@@ -1870,8 +2046,62 @@ fn draw_control_center(f: &mut ratatui::Frame, state: &ControlCenterState) {
                 .highlight_symbol("▶ ");
             f.render_stateful_widget(repos_list, pane_chunks[0], &mut repos_list_state);
 
-            // Details pane or Add Repo input
-            if state.input_mode {
+            // Details pane, Add Repo file selector, or legacy input
+            if state.file_selector_active {
+                // File selector display
+                let current_dir_str = state.selector_current_dir.to_string_lossy().to_string();
+
+                let selector_items: Vec<ListItem> = state
+                    .selector_entries
+                    .iter()
+                    .map(|entry| {
+                        let display_name = if entry == &state.selector_current_dir {
+                            let name = state
+                                .selector_current_dir
+                                .file_name()
+                                .map(|n| n.to_string_lossy().to_string())
+                                .unwrap_or_else(|| "/".to_string());
+                            format!("● [Watch Current Directory] {}", name)
+                        } else if Some(entry)
+                            == state
+                                .selector_current_dir
+                                .parent()
+                                .map(|p| p.to_path_buf())
+                                .as_ref()
+                        {
+                            "↱ .. (Parent Directory)".to_string()
+                        } else {
+                            let is_repo = entry.join(".git").is_dir();
+                            let suffix = if is_repo { " [Git Repo]" } else { "" };
+                            let folder_name = entry
+                                .file_name()
+                                .map(|n| n.to_string_lossy().to_string())
+                                .unwrap_or_default();
+                            format!("📁 {}{}", folder_name, suffix)
+                        };
+
+                        ListItem::new(display_name)
+                    })
+                    .collect();
+
+                let mut list_state = state.selector_list_state;
+                let list_widget = List::new(selector_items)
+                    .block(
+                        Block::default()
+                            .borders(Borders::ALL)
+                            .border_type(BorderType::Rounded)
+                            .border_style(Style::default().fg(Color::Yellow))
+                            .title(format!(" File Selector │ Current: {} ", current_dir_str)),
+                    )
+                    .highlight_style(
+                        Style::default()
+                            .bg(Color::Rgb(40, 40, 40))
+                            .fg(Color::Yellow)
+                            .add_modifier(Modifier::BOLD),
+                    )
+                    .highlight_symbol("▶ ");
+                f.render_stateful_widget(list_widget, pane_chunks[1], &mut list_state);
+            } else if state.input_mode {
                 let input_widget = Paragraph::new(format!("> {}", state.input_buffer)).block(
                     Block::default()
                         .borders(Borders::ALL)

@@ -49,6 +49,8 @@ pub struct Config {
     pub commit_exclude_git_config: bool,
     pub commit_author: Option<String>,
     pub commit_email: Option<String>,
+    #[serde(default)]
+    pub base_root: Option<String>,
     pub repos: BTreeMap<String, Rc<WatchConfig>>,
 }
 
@@ -96,6 +98,7 @@ impl Config {
             commit_exclude_git_config: false,
             commit_author: None,
             commit_email: None,
+            base_root: None,
             repos: BTreeMap::new(),
         }
     }
