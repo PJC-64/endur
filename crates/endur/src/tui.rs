@@ -377,7 +377,11 @@ impl ControlCenterState {
             daemon_pid,
             daemon_start_time,
             daemon_version: None,
-            management_mode: ManagementMode::Direct,
+            management_mode: if service_installed && service_running {
+                ManagementMode::Service
+            } else {
+                ManagementMode::Direct
+            },
             service_installed,
             service_running,
             file_selector_active: false,
