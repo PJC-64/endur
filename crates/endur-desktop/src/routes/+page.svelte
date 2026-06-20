@@ -395,12 +395,23 @@
       }
     }
 
-    loadDaemonStatus();
     loadRepos();
     loadLogs();
     initSelector();
-    
-    loadServiceStatus();
+
+    // Dynamically auto-switch management mode on startup if service or daemon is running
+    (async () => {
+      try {
+        await Promise.all([loadDaemonStatus(), loadServiceStatus()]);
+        if (serviceStatus.running) {
+          setManagementMode("service");
+        } else if (daemonStatus.running) {
+          setManagementMode("direct");
+        }
+      } catch (e) {
+        console.error("Failed to load initial daemon/service status", e);
+      }
+    })();
 
     const serviceInterval = setInterval(() => {
       loadServiceStatus();
