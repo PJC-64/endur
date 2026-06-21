@@ -1,6 +1,6 @@
-# Endur Release Notes (v1.2.0)
+# Endur Release Notes (v1.2.1)
 
-We are proud to announce the release of **Endur** (v1.2.0). This release is packed with major usability enhancements, including the deprecation of raw background processes in favor of OS-level system services, fully integrated graphical and terminal service managers, and interactive git-repository-aware filesystem browsers.
+We are proud to announce the release of **Endur** (v1.2.1). This release is packed with major usability enhancements, including the deprecation of raw background processes in favor of OS-level system services, fully integrated graphical and terminal service managers, and interactive git-repository-aware filesystem browsers.
 
 ---
 
