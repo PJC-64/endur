@@ -25,7 +25,7 @@ Compared to the upstream `dura` repository, **Endur** adds the following feature
 6. **Built-in CLI Recovery & Interactive TUIs**:
    * `endur list-snapshots`: Lists snapshots since the last formal commit by default; pass `--all` to see the full history.
    * `endur prune`: Delete historical backup snapshots based on a target commit, age duration, or retention count to reclaim disk space.
-   * `endur restore -i`: Visual Terminal User Interface (TUI) powered by `ratatui` to browse repositories, drill down into snapshots, preview modified files, and selectively restore files using interactive checkboxes (`Space` to toggle, `Enter` to restore).
+   * `endur restore -i`: Visual Terminal User Interface (TUI) powered by `ratatui` (running as a synonym for `endur tui`) to browse repositories, drill down into snapshots, preview modified files, and selectively restore files using interactive checkboxes (`Space` to toggle, `Enter` to restore).
    * `endur tui`: A comprehensive Control Center TUI to monitor background daemon status, manage watched repositories, inspect live logs, and view performance metrics.
 7. **System Startup Service Subcommands**: Exposes `endur service install` and `endur service uninstall` to register the daemon as a system service automatically (`launchd` on macOS, `systemd` on Linux).
 8. **Configurable Log Redirection**: The `endur serve` daemon runs completely silently, logging only to a configurable file path (defaults to `~/.cache/endur/endur.log`).

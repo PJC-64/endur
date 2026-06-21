@@ -92,7 +92,7 @@ graph TD
     *   **Git GC**: Optionally spawns a `git gc --prune=now` subcommand to purge deleted commits and reclaim disk space immediately.
 
 ### 7. Interactive TUI Restore & Control Center ([src/tui.rs](file:///Users/pjc/Development/endur/src/tui.rs))
-*   **Decoupled `TuiState`**: Separates core snapshot-browsing state management (watched repositories, snapshots, modified file listings, checkmarked files, and pane focusing) from the rendering engine. This allows the backup-browsing screen and its logic to be seamlessly reused inside both the single-purpose `endur restore -i` utility and the multi-tab Control Center.
+*   **Decoupled `TuiState`**: Separates core snapshot-browsing state management (watched repositories, snapshots, modified file listings, checkmarked files, and pane focusing) from the rendering engine. This keeps state management clean and modular, allowing the backup-browsing logic to be reused and integrated within the unified multi-tab Control Center.
 *   **Asynchronous Control Center TUI (`endur tui`)**:
     *   **Tokio Event Loop**: Uses an async main loop running on Tokio to merge multiple non-blocking event sources: Crossterm keyboard events, periodic daemon PID/uptime status checks, and log file tail changes.
     *   **Live Log Streaming**: Spawns an asynchronous log tail watcher that tails changes to `endur.log` and feeds new lines directly into the state machine to trigger real-time UI updates.

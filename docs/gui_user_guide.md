@@ -61,6 +61,9 @@ Endur runs as a background process to watch your filesystem. You can control how
 - **GUI Independence**: The GUI is fully decoupled from the system service. Starting, stopping, or installing the service will not restart the GUI or disrupt your current views.
 - **Running Version**: Displays the exact binary version currently running as a system service.
 
+### Startup Mode Auto-Switching
+On startup, the GUI automatically queries the status of the daemon and system service. If the system service is active and running, the GUI automatically switches to **Service** management mode. If the daemon is running directly (and not as a service), it switches to **Direct** management mode. If neither is running, it defaults to your last chosen configuration (saved in browser `localStorage`). You can manually switch between modes at any time.
+
 ---
 
 ## 4. Watchlist Management & Directory Browser

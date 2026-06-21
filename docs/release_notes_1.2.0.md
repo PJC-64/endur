@@ -17,6 +17,8 @@ We are proud to announce the release of **Endur** (v1.2.0). This release is pack
 * **Service Lifecycle Controls**: Install, uninstall, start, and stop system services with a single click or keyboard command.
 * **Running Service Version**: Displays the exact version of the active background system service inside the status panels.
 * **Direct Mode Service Detection**: The direct process control panel automatically detects if Endur is active as a system service, displaying a warning note and locking duplicate process execution.
+* **Startup Mode Auto-Switching**: Automatically detects the active daemon mode on TUI and GUI startup, switching to Service management mode if the system service is running, or Direct mode if only the direct process is active.
+* **Clean Service Reinstallation**: Running the service install command when a service is already installed now automatically stops and uninstalls the old service version first, then registers and starts the latest version cleanly.
 * **GUI Decoupling**: Completely separated the GUI application process from the background service, ensuring that installing, starting, or stopping the system service never causes the GUI to restart or launch duplicate windows.
 
 ### 3. Stability & Developer Experience

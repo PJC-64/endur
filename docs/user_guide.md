@@ -172,6 +172,9 @@ This launches a full-screen interface featuring four tabbed panes:
     *   Use arrow keys (`Up` / `Down` / `Left` / `Right`) to navigate lists.
     *   On the **Metrics** tab, scroll through the metrics list using `Up` and `Down` arrow keys.
     *   Press `q` to quit the Control Center.
+    *   Press `m` to manually toggle between **Direct** and **Service** management modes.
+*   **Startup Mode Auto-Switching**:
+    On startup, the TUI automatically detects the active daemon mode. If the daemon is running as a system service, the TUI defaults to **Service** management mode. If the daemon is running directly (or if neither is running), it defaults to **Direct** management mode.
 
 ### 10. Performance Metrics (`metrics`)
 To scrape logs and generate performance metrics (such as snapshot backup latency, counts of changed files, insertions, and deletions), run:
@@ -231,7 +234,7 @@ For a visual selection interface, run:
 ```bash
 endur restore -i
 ```
-This launches an interactive Terminal User Interface (TUI) with a multi-step selection flow:
+This command runs as a synonym for `endur tui` to launch the unified Terminal User Interface (TUI) Control Center. In the TUI, you can browse backups and restore files with a multi-step selection flow:
 1. **Repository Selection**:
    * Use `Up` / `Down` to navigate the list of watched repositories on the left. A preview of backups is shown on the right.
    * Press `Enter` (or `Right`/`Tab`) to select the highlighted repository. This transitions to the Snapshot view.
