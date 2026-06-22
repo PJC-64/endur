@@ -425,8 +425,7 @@ async fn main() {
                 return;
             }
 
-            let dir =
-                Path::new(arg_matches.get_one::<String>("directory").unwrap()).to_path_buf();
+            let dir = Path::new(arg_matches.get_one::<String>("directory").unwrap()).to_path_buf();
             let hash = arg_matches.get_one::<String>("hash").unwrap().to_string();
             let files = arg_matches
                 .get_many::<String>("files")

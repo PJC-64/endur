@@ -59,7 +59,11 @@ fn create_sparkline(data: &[f64]) -> String {
     let mut result = String::new();
     for &val in data {
         let index = if range == 0.0 {
-            if max > 0.0 { 7 } else { 0 }
+            if max > 0.0 {
+                7
+            } else {
+                0
+            }
         } else {
             let normalized = (val - min) / range;
             let idx = (normalized * 7.0).round() as usize;

@@ -417,7 +417,7 @@ impl ControlCenterState {
 
     pub fn update_metrics(&mut self) {
         let log_path = crate::database::RuntimeLock::get_endur_cache_home().join("endur.log");
-        
+
         // 1. Get the human readable metrics text
         if let Ok(mut file) = std::fs::File::open(&log_path) {
             let mut output = Vec::new();
@@ -434,18 +434,38 @@ impl ControlCenterState {
         self.metrics_data.clear();
         if let Ok(mut file) = std::fs::File::open(&log_path) {
             let mut json_output = Vec::new();
-            if crate::metrics::get_snapshot_metrics(&mut file, &mut json_output, false, false).is_ok() {
+            if crate::metrics::get_snapshot_metrics(&mut file, &mut json_output, false, false)
+                .is_ok()
+            {
                 if let Ok(s) = String::from_utf8(json_output) {
                     for line in s.lines() {
                         if let Ok(val) = serde_json::from_str::<serde_json::Value>(line) {
-                            let repo = val.get("repo").and_then(|v| v.as_str()).unwrap_or("").to_string();
-                            let time = val.get("time").and_then(|v| v.as_str()).unwrap_or("").to_string();
-                            let latency = val.get("latency").and_then(|v| v.as_f64()).unwrap_or(0.0);
-                            let insertions = val.get("insertions").and_then(|v| v.as_u64()).unwrap_or(0);
-                            let deletions = val.get("deletions").and_then(|v| v.as_u64()).unwrap_or(0);
-                            let num_files_changed = val.get("num_files_changed").and_then(|v| v.as_u64()).unwrap_or(0);
-                            let commit_hash = val.get("commit_hash").and_then(|v| v.as_str()).unwrap_or("").to_string();
-                            
+                            let repo = val
+                                .get("repo")
+                                .and_then(|v| v.as_str())
+                                .unwrap_or("")
+                                .to_string();
+                            let time = val
+                                .get("time")
+                                .and_then(|v| v.as_str())
+                                .unwrap_or("")
+                                .to_string();
+                            let latency =
+                                val.get("latency").and_then(|v| v.as_f64()).unwrap_or(0.0);
+                            let insertions =
+                                val.get("insertions").and_then(|v| v.as_u64()).unwrap_or(0);
+                            let deletions =
+                                val.get("deletions").and_then(|v| v.as_u64()).unwrap_or(0);
+                            let num_files_changed = val
+                                .get("num_files_changed")
+                                .and_then(|v| v.as_u64())
+                                .unwrap_or(0);
+                            let commit_hash = val
+                                .get("commit_hash")
+                                .and_then(|v| v.as_str())
+                                .unwrap_or("")
+                                .to_string();
+
                             self.metrics_data.push(SnapshotMetric {
                                 repo,
                                 time,
@@ -1965,32 +1985,48 @@ fn draw_control_center(f: &mut ratatui::Frame, state: &ControlCenterState) {
 
             let summary_text = Line::from(vec![
                 Span::styled(" Total Snapshots: ", Style::default().fg(Color::DarkGray)),
-                Span::styled(format!("{}", total_snapshots), Style::default().fg(Color::White).add_modifier(Modifier::BOLD)),
+                Span::styled(
+                    format!("{}", total_snapshots),
+                    Style::default()
+                        .fg(Color::White)
+                        .add_modifier(Modifier::BOLD),
+                ),
                 Span::styled("  │  Repos: ", Style::default().fg(Color::DarkGray)),
-                Span::styled(format!("{}", unique_repos.len()), Style::default().fg(Color::White).add_modifier(Modifier::BOLD)),
+                Span::styled(
+                    format!("{}", unique_repos.len()),
+                    Style::default()
+                        .fg(Color::White)
+                        .add_modifier(Modifier::BOLD),
+                ),
                 Span::styled("  │  Lines Changed: ", Style::default().fg(Color::DarkGray)),
-                Span::styled(format!("{}", total_lines_changed), Style::default().fg(Color::White).add_modifier(Modifier::BOLD)),
+                Span::styled(
+                    format!("{}", total_lines_changed),
+                    Style::default()
+                        .fg(Color::White)
+                        .add_modifier(Modifier::BOLD),
+                ),
                 Span::styled("  │  Avg Latency: ", Style::default().fg(Color::DarkGray)),
-                Span::styled(formatted_avg, Style::default().fg(Color::White).add_modifier(Modifier::BOLD)),
+                Span::styled(
+                    formatted_avg,
+                    Style::default()
+                        .fg(Color::White)
+                        .add_modifier(Modifier::BOLD),
+                ),
             ]);
 
-            let summary_widget = Paragraph::new(summary_text)
-                .block(
-                    Block::default()
-                        .borders(Borders::ALL)
-                        .border_type(BorderType::Rounded)
-                        .border_style(Style::default().fg(Color::Cyan))
-                        .title(" Snapshot Metrics Summary "),
-                );
+            let summary_widget = Paragraph::new(summary_text).block(
+                Block::default()
+                    .borders(Borders::ALL)
+                    .border_type(BorderType::Rounded)
+                    .border_style(Style::default().fg(Color::Cyan))
+                    .title(" Snapshot Metrics Summary "),
+            );
             f.render_widget(summary_widget, metrics_chunks[0]);
 
             // 2. Sparklines
             let sparkline_chunks = Layout::default()
                 .direction(Direction::Horizontal)
-                .constraints([
-                    Constraint::Percentage(50),
-                    Constraint::Percentage(50),
-                ])
+                .constraints([Constraint::Percentage(50), Constraint::Percentage(50)])
                 .split(metrics_chunks[1]);
 
             let last_40_metrics = if state.metrics_data.len() > 40 {
@@ -1999,8 +2035,14 @@ fn draw_control_center(f: &mut ratatui::Frame, state: &ControlCenterState) {
                 &state.metrics_data[..]
             };
 
-            let latency_data: Vec<u64> = last_40_metrics.iter().map(|m| (m.latency * 1000.0) as u64).collect();
-            let changes_data: Vec<u64> = last_40_metrics.iter().map(|m| m.insertions + m.deletions).collect();
+            let latency_data: Vec<u64> = last_40_metrics
+                .iter()
+                .map(|m| (m.latency * 1000.0) as u64)
+                .collect();
+            let changes_data: Vec<u64> = last_40_metrics
+                .iter()
+                .map(|m| m.insertions + m.deletions)
+                .collect();
 
             let latency_sparkline = Sparkline::default()
                 .block(
