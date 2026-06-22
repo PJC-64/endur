@@ -9,7 +9,7 @@ use ratatui::{
     },
     layout::{Constraint, Direction, Layout},
     style::{Color, Modifier, Style},
-    widgets::{Block, BorderType, Borders, List, ListItem, ListState, Paragraph, Tabs},
+    widgets::{Block, BorderType, Borders, List, ListItem, ListState, Paragraph, Sparkline, Tabs},
     Terminal,
 };
 use std::io::{self, Read};
@@ -317,6 +317,16 @@ fn get_base_root() -> PathBuf {
     }
     PathBuf::from("/")
 }
+#[derive(Clone, Debug)]
+pub struct SnapshotMetric {
+    pub repo: String,
+    pub time: String,
+    pub latency: f64,
+    pub insertions: u64,
+    pub deletions: u64,
+    pub num_files_changed: u64,
+    pub commit_hash: String,
+}
 
 pub struct ControlCenterState {
     pub tab: ControlCenterTab,
@@ -343,6 +353,7 @@ pub struct ControlCenterState {
     pub preview_scroll: u16,
     pub metrics_text: String,
     pub metrics_scroll: u16,
+    pub metrics_data: Vec<SnapshotMetric>,
 
     pub input_mode: bool,
     pub input_buffer: String,
@@ -394,6 +405,7 @@ impl ControlCenterState {
             preview_scroll: 0,
             metrics_text: String::new(),
             metrics_scroll: 0,
+            metrics_data: Vec::new(),
             input_mode: false,
             input_buffer: String::new(),
             message: Some("Welcome to Endur Control Center!".to_string()),
@@ -405,16 +417,49 @@ impl ControlCenterState {
 
     pub fn update_metrics(&mut self) {
         let log_path = crate::database::RuntimeLock::get_endur_cache_home().join("endur.log");
+        
+        // 1. Get the human readable metrics text
         if let Ok(mut file) = std::fs::File::open(&log_path) {
             let mut output = Vec::new();
             if crate::metrics::get_snapshot_metrics(&mut file, &mut output, true, true).is_ok() {
                 if let Ok(s) = String::from_utf8(output) {
                     self.metrics_text = s;
-                    return;
+                }
+            }
+        } else {
+            self.metrics_text = "No metrics found or failed to read log file.".to_string();
+        }
+
+        // 2. Parse JSON metrics data for sparklines
+        self.metrics_data.clear();
+        if let Ok(mut file) = std::fs::File::open(&log_path) {
+            let mut json_output = Vec::new();
+            if crate::metrics::get_snapshot_metrics(&mut file, &mut json_output, false, false).is_ok() {
+                if let Ok(s) = String::from_utf8(json_output) {
+                    for line in s.lines() {
+                        if let Ok(val) = serde_json::from_str::<serde_json::Value>(line) {
+                            let repo = val.get("repo").and_then(|v| v.as_str()).unwrap_or("").to_string();
+                            let time = val.get("time").and_then(|v| v.as_str()).unwrap_or("").to_string();
+                            let latency = val.get("latency").and_then(|v| v.as_f64()).unwrap_or(0.0);
+                            let insertions = val.get("insertions").and_then(|v| v.as_u64()).unwrap_or(0);
+                            let deletions = val.get("deletions").and_then(|v| v.as_u64()).unwrap_or(0);
+                            let num_files_changed = val.get("num_files_changed").and_then(|v| v.as_u64()).unwrap_or(0);
+                            let commit_hash = val.get("commit_hash").and_then(|v| v.as_str()).unwrap_or("").to_string();
+                            
+                            self.metrics_data.push(SnapshotMetric {
+                                repo,
+                                time,
+                                latency,
+                                insertions,
+                                deletions,
+                                num_files_changed,
+                                commit_hash,
+                            });
+                        }
+                    }
                 }
             }
         }
-        self.metrics_text = "No metrics found or failed to read log file.".to_string();
     }
 
     pub fn show_message(&mut self, msg: String) {
@@ -1887,16 +1932,112 @@ fn draw_control_center(f: &mut ratatui::Frame, state: &ControlCenterState) {
             f.render_widget(logs_widget, chunks[2]);
         }
         ControlCenterTab::Metrics => {
-            let metrics_widget = Paragraph::new(state.metrics_text.as_str())
+            // Split chunks[2] into Summary (3), Sparklines (7), Table (Min 5)
+            let metrics_chunks = Layout::default()
+                .direction(Direction::Vertical)
+                .constraints([
+                    Constraint::Length(3), // Summary bar
+                    Constraint::Length(7), // Side-by-side sparklines
+                    Constraint::Min(5),    // Original scrollable details table
+                ])
+                .split(chunks[2]);
+
+            // 1. Summary Bar
+            let total_snapshots = state.metrics_data.len();
+            let mut unique_repos = std::collections::HashSet::new();
+            let mut total_lines_changed = 0;
+            let mut latencies = Vec::new();
+            for m in &state.metrics_data {
+                unique_repos.insert(&m.repo);
+                total_lines_changed += m.insertions + m.deletions;
+                latencies.push(m.latency);
+            }
+            let avg_latency = if latencies.is_empty() {
+                0.0
+            } else {
+                latencies.iter().sum::<f64>() / latencies.len() as f64
+            };
+            let formatted_avg = if avg_latency < 1.0 {
+                format!("{:.1}ms", avg_latency * 1000.0)
+            } else {
+                format!("{:.2}s", avg_latency)
+            };
+
+            let summary_text = Line::from(vec![
+                Span::styled(" Total Snapshots: ", Style::default().fg(Color::DarkGray)),
+                Span::styled(format!("{}", total_snapshots), Style::default().fg(Color::White).add_modifier(Modifier::BOLD)),
+                Span::styled("  │  Repos: ", Style::default().fg(Color::DarkGray)),
+                Span::styled(format!("{}", unique_repos.len()), Style::default().fg(Color::White).add_modifier(Modifier::BOLD)),
+                Span::styled("  │  Lines Changed: ", Style::default().fg(Color::DarkGray)),
+                Span::styled(format!("{}", total_lines_changed), Style::default().fg(Color::White).add_modifier(Modifier::BOLD)),
+                Span::styled("  │  Avg Latency: ", Style::default().fg(Color::DarkGray)),
+                Span::styled(formatted_avg, Style::default().fg(Color::White).add_modifier(Modifier::BOLD)),
+            ]);
+
+            let summary_widget = Paragraph::new(summary_text)
+                .block(
+                    Block::default()
+                        .borders(Borders::ALL)
+                        .border_type(BorderType::Rounded)
+                        .border_style(Style::default().fg(Color::Cyan))
+                        .title(" Snapshot Metrics Summary "),
+                );
+            f.render_widget(summary_widget, metrics_chunks[0]);
+
+            // 2. Sparklines
+            let sparkline_chunks = Layout::default()
+                .direction(Direction::Horizontal)
+                .constraints([
+                    Constraint::Percentage(50),
+                    Constraint::Percentage(50),
+                ])
+                .split(metrics_chunks[1]);
+
+            let last_40_metrics = if state.metrics_data.len() > 40 {
+                &state.metrics_data[state.metrics_data.len() - 40..]
+            } else {
+                &state.metrics_data[..]
+            };
+
+            let latency_data: Vec<u64> = last_40_metrics.iter().map(|m| (m.latency * 1000.0) as u64).collect();
+            let changes_data: Vec<u64> = last_40_metrics.iter().map(|m| m.insertions + m.deletions).collect();
+
+            let latency_sparkline = Sparkline::default()
+                .block(
+                    Block::default()
+                        .borders(Borders::ALL)
+                        .border_type(BorderType::Rounded)
+                        .border_style(Style::default().fg(Color::DarkGray))
+                        .title(" Latency Trend (Last 40, ms) "),
+                )
+                .data(&latency_data)
+                .style(Style::default().fg(Color::Blue));
+
+            let changes_sparkline = Sparkline::default()
+                .block(
+                    Block::default()
+                        .borders(Borders::ALL)
+                        .border_type(BorderType::Rounded)
+                        .border_style(Style::default().fg(Color::DarkGray))
+                        .title(" Activity/Lines Changed Trend (Last 40) "),
+                )
+                .data(&changes_data)
+                .style(Style::default().fg(Color::Green));
+
+            f.render_widget(latency_sparkline, sparkline_chunks[0]);
+            f.render_widget(changes_sparkline, sparkline_chunks[1]);
+
+            // 3. Raw Table
+            let table_widget = Paragraph::new(state.metrics_text.as_str())
                 .block(
                     Block::default()
                         .borders(Borders::ALL)
                         .border_type(BorderType::Rounded)
                         .border_style(Style::default().fg(Color::Yellow))
-                        .title(" Snapshot Metrics Summary (endur metrics) "),
+                        .title(" Snapshot Metrics Details Table "),
                 )
                 .scroll((state.metrics_scroll, 0));
-            f.render_widget(metrics_widget, chunks[2]);
+            f.render_widget(table_widget, metrics_chunks[2]);
         }
     }
 

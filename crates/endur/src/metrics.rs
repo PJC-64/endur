@@ -40,6 +40,35 @@ fn format_repo_path(path: &str) -> String {
     }
     format!(".../{result}")
 }
+fn create_sparkline(data: &[f64]) -> String {
+    if data.is_empty() {
+        return String::new();
+    }
+    let mut min = data[0];
+    let mut max = data[0];
+    for &val in data {
+        if val < min {
+            min = val;
+        }
+        if val > max {
+            max = val;
+        }
+    }
+    let range = max - min;
+    let blocks = [' ', '▂', '▃', '▄', '▅', '▆', '▇', '█'];
+    let mut result = String::new();
+    for &val in data {
+        let index = if range == 0.0 {
+            if max > 0.0 { 7 } else { 0 }
+        } else {
+            let normalized = (val - min) / range;
+            let idx = (normalized * 7.0).round() as usize;
+            idx.min(7)
+        };
+        result.push(blocks[index]);
+    }
+    result
+}
 
 /// Reads an input stream that contains endur logs and enriches them with more analytics-ready info
 /// like number of insertions & deletions. The result is written back out to an output stream.
@@ -92,6 +121,7 @@ pub fn get_snapshot_metrics(
         let mut total_insertions = 0;
         let mut total_deletions = 0;
         let mut latencies = Vec::new();
+        let mut changes = Vec::new();
 
         for s in &snapshots {
             if let Some(repo) = s.get("repo").and_then(|v| v.as_str()) {
@@ -101,11 +131,13 @@ pub fn get_snapshot_metrics(
                 .get("num_files_changed")
                 .and_then(|v| v.as_u64())
                 .unwrap_or(0);
-            total_insertions += s.get("insertions").and_then(|v| v.as_u64()).unwrap_or(0);
-            total_deletions += s.get("deletions").and_then(|v| v.as_u64()).unwrap_or(0);
-            if let Some(latency) = s.get("latency").and_then(|v| v.as_f64()) {
-                latencies.push(latency);
-            }
+            let ins = s.get("insertions").and_then(|v| v.as_u64()).unwrap_or(0);
+            let del = s.get("deletions").and_then(|v| v.as_u64()).unwrap_or(0);
+            total_insertions += ins;
+            total_deletions += del;
+            changes.push((ins + del) as f64);
+            let latency = s.get("latency").and_then(|v| v.as_f64()).unwrap_or(0.0);
+            latencies.push(latency);
         }
 
         let avg_latency = if latencies.is_empty() {
@@ -125,6 +157,19 @@ pub fn get_snapshot_metrics(
         } else {
             format!("{:.2}s", max_latency)
         };
+
+        let last_40_latencies = if latencies.len() > 40 {
+            &latencies[latencies.len() - 40..]
+        } else {
+            &latencies[..]
+        };
+        let last_40_changes = if changes.len() > 40 {
+            &changes[changes.len() - 40..]
+        } else {
+            &changes[..]
+        };
+        let latency_sparkline = create_sparkline(last_40_latencies);
+        let activity_sparkline = create_sparkline(last_40_changes);
 
         if summary_at_top {
             writeln!(&mut writer, "Summary:")?;
@@ -147,6 +192,8 @@ pub fn get_snapshot_metrics(
             )?;
             writeln!(&mut writer, "  Average Latency     : {}", formatted_avg)?;
             writeln!(&mut writer, "  Maximum Latency     : {}", formatted_max)?;
+            writeln!(&mut writer, "  Latency Trend       : {latency_sparkline}")?;
+            writeln!(&mut writer, "  Activity Trend      : {activity_sparkline}")?;
             writeln!(&mut writer, "{}", "-".repeat(header.len()))?;
         }
 
@@ -220,6 +267,8 @@ pub fn get_snapshot_metrics(
             )?;
             writeln!(&mut writer, "  Average Latency     : {}", formatted_avg)?;
             writeln!(&mut writer, "  Maximum Latency     : {}", formatted_max)?;
+            writeln!(&mut writer, "  Latency Trend       : {latency_sparkline}")?;
+            writeln!(&mut writer, "  Activity Trend      : {activity_sparkline}")?;
         }
     } else {
         loop {
