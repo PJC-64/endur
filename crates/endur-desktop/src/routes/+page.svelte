@@ -1096,6 +1096,7 @@
                   {#each activityBars as bar}
                     <!-- Insertions Stack (bottom) -->
                     {#if bar.insHeight > 0}
+                      <!-- svelte-ignore a11y_no_static_element_interactions -->
                       <rect
                         x={bar.x}
                         y={bar.insY}
@@ -1110,6 +1111,7 @@
                     {/if}
                     <!-- Deletions Stack (top of insertions) -->
                     {#if bar.delHeight > 0}
+                      <!-- svelte-ignore a11y_no_static_element_interactions -->
                       <rect
                         x={bar.x}
                         y={bar.delY}
@@ -1123,6 +1125,7 @@
                       />
                     {/if}
                     <!-- Invisible full-height bar for easier hovering -->
+                    <!-- svelte-ignore a11y_no_static_element_interactions -->
                     <rect
                       x={bar.x}
                       y="20"
@@ -1177,6 +1180,7 @@
                     <!-- Neon node circles -->
                     {#each latencyPoints as p}
                       <!-- Large hover target circle -->
+                      <!-- svelte-ignore a11y_no_static_element_interactions -->
                       <circle
                         cx={p.x}
                         cy={p.y}
@@ -1187,6 +1191,7 @@
                         onmouseleave={() => activeLatencyHover = null}
                       />
                       <!-- Visible visual circle -->
+                      <!-- svelte-ignore a11y_no_static_element_interactions -->
                       <circle
                         cx={p.x}
                         cy={p.y}
