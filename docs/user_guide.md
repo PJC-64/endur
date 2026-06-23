@@ -165,12 +165,15 @@ This launches a full-screen interface featuring four tabbed panes:
 1. **[1] Repositories**: Lists all watched repositories. Allows adding new repository paths (press `a`), stopping watching a repository (press `d`), or running a watchlist cleanup (press `c`).
 2. **[2] Backups & Restore**: Browse through snapshots, toggle file selections using `Space`, view real-time git diff previews, and trigger full or selective restores.
 3. **[3] Full Log**: View a scrollable list of the running daemon log file.
-4. **[4] Metrics**: Displays a clean, aligned table of snapshot metrics (latency, hashes, insertions, deletions) and overall performance statistics (average/max latencies).
+4. **[4] Metrics**: Displays a comprehensive visual performance dashboard featuring:
+   *   **Summary Bar**: Showing quick stats for Total Snapshots, Watched Repos, Total Lines Changed, and Average Latency.
+   *   **Graphical Sparklines**: Side-by-side terminal graphs plotting Latency Trends (Blue) and Activity/Lines Changed Trends (Green) over the last 40 backups.
+   *   **Details Table**: The original cleanly aligned table listing the date/time, repository, changed files, insertions, deletions, latency, and commit hash for each snapshot.
 
 *   **Controls**:
     *   Switch tabs using keys `1`, `2`, `3`, `4` or by pressing `Tab`.
     *   Use arrow keys (`Up` / `Down` / `Left` / `Right`) to navigate lists.
-    *   On the **Metrics** tab, scroll through the metrics list using `Up` and `Down` arrow keys.
+    *   On the **Metrics** tab, scroll through the details table using `Up` and `Down` arrow keys.
     *   Press `q` to quit the Control Center.
     *   Press `m` to manually toggle between **Direct** and **Service** management modes.
 *   **Startup Mode Auto-Switching**:
@@ -183,7 +186,7 @@ endur metrics
 ```
 *   **Log Input**: By default, `endur metrics` checks if standard input is a terminal. If it is run interactively on a TTY, it automatically reads from the default cached daemon log file (`~/.cache/endur/endur.log`). Otherwise, it expects log lines piped through standard input (e.g. `cat endur.log | endur metrics`). You can also specify an input file using `-i <FILE>`.
 *   **JSON Output (Default)**: By default, it outputs raw JSON data suitable for post-processing and automation tools.
-*   **Human-Readable Table (`-h` / `--human-readable`)**: Provide the `-h` or `--human-readable` flag to format the snapshot statistics into a cleanly aligned text table and print a performance summary including total snapshots, average latency, and max latency:
+*   **Human-Readable Table (`-h` / `--human-readable`)**: Provide the `-h` or `--human-readable` flag to format the snapshot statistics into a cleanly aligned text table and print a performance summary. Under the summary header, it prints Unicode sparkline trends for Latency and Activity over the last 40 backups:
     ```bash
     endur metrics -h
     ```

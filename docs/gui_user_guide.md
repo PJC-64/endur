@@ -33,12 +33,12 @@ Endur Desktop is a premium, cross-platform graphical application built on Tauri 
 
 ## 2. Navigating the Dashboard
 
-The application dashboard uses a dark theme with glassmorphism panels. It is divided into four main sections, accessible via the top navigation bar:
+The application dashboard uses a dark theme with glassmorphism panels. It is divided into four main sections, accessible via the sidebar navigation:
 
-1. **Dashboard (Control Center)**: Displays background daemon status, process metrics, and live log consoles.
-2. **Watchlist**: Shows currently monitored directories and provides a graphical explorer to browse and watch new repositories.
-3. **Backups & Restore**: Displays snapshot history, lists changed files, shows side-by-side git diffs, and provides one-click restore actions.
-4. **Daemon Service**: Manages daemon processes and system startup services.
+1. **Dashboard**: Displays background daemon status, direct process controls, and system startup service management controls side-by-side.
+2. **Watchlist**: Shows currently monitored directories and provides a graphical explorer to browse and watch new Git repositories.
+3. **Backups & Restore**: Displays snapshot history, lists changed files, shows side-by-side git diffs, and provides selective/full restore actions.
+4. **Analytics**: Renders a premium metrics dashboard including summary statistics cards (Total Snapshots, Watched Repos, Lines Changed, Avg Latency), custom high-fidelity SVG-based charts (Backup Activity stacked bars and Backup Latency area charts), and a performance statistics table.
 
 ---
 
@@ -108,3 +108,18 @@ Restore files easily in the **Backups & Restore** tab:
 5. **Recovery Options**:
    - **Discrete File Restore**: Select specific files using checkboxes, and click **Restore Selected** to revert only those files.
    - **Full Restore**: Click **Restore All** to revert the entire repository state back to that snapshot.
+
+---
+
+## 6. Performance Analytics
+
+The **Analytics** tab provides a real-time visual dashboard of snapshot backup performance and activity history across all monitored repositories:
+
+*   **Summary Cards**: Quick-glance counters at the top displaying:
+    *   **Total Snapshots**: Total number of backups recorded.
+    *   **Watched Repos**: Count of active watched repositories.
+    *   **Total Lines Changed**: Accumulated insertions (`(+)`) and deletions (`(-)`) across history.
+    *   **Average Latency**: Mean time taken to execute a snapshot commit.
+*   **Recent Backup Activity Chart**: A custom SVG stacked bar chart graphing lines changed per snapshot. Green bars represent insertions, and red bars represent deletions. Hovering over a bar reveals the exact repository and lines changed details.
+*   **Backup Latency Trend**: A custom SVG line/area chart graphing snapshot execution durations. Blue nodes map latency over the last backups, with hover actions displaying elapsed times.
+*   **Snapshot Performance Table**: A tabular presentation of all snapshot metadata, letting you scroll and inspect the date, repository path, file changes, latency, and git commit hashes.
