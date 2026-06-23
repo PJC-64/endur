@@ -217,10 +217,38 @@ pub fn is_running() -> Result<bool> {
 
 #[cfg(target_os = "macos")]
 pub fn start() -> Result<()> {
+    let home = dirs::home_dir().ok_or_else(|| anyhow!("Could not determine home directory"))?;
+    let plist_path = home
+        .join("Library")
+        .join("LaunchAgents")
+        .join("com.endur.daemon.plist");
+
+    if !plist_path.exists() {
+        return Err(anyhow!(
+            "Service plist not found. Please install the service first."
+        ));
+    }
+
     let uid = get_uid()?;
+
+    // 1. Try to bootstrap/load it first (in case it was stopped/unloaded)
+    let _ = Command::new("launchctl")
+        .args([
+            "bootstrap",
+            &format!("gui/{uid}"),
+            plist_path.to_str().unwrap(),
+        ])
+        .status();
+
+    let _ = Command::new("launchctl")
+        .args(["load", plist_path.to_str().unwrap()])
+        .status();
+
+    // 2. Now run kickstart to ensure it is actually running
     let status = Command::new("launchctl")
         .args(["kickstart", "-k", &format!("gui/{uid}/com.endur.daemon")])
         .status();
+
     match status {
         Ok(s) if s.success() => Ok(()),
         _ => {
@@ -239,14 +267,45 @@ pub fn start() -> Result<()> {
 
 #[cfg(target_os = "macos")]
 pub fn stop() -> Result<()> {
+    let home = dirs::home_dir().ok_or_else(|| anyhow!("Could not determine home directory"))?;
+    let plist_path = home
+        .join("Library")
+        .join("LaunchAgents")
+        .join("com.endur.daemon.plist");
+
+    if !plist_path.exists() {
+        return Ok(());
+    }
+
+    let uid = get_uid()?;
+
+    // Attempt bootout/unload to stop the KeepAlive agent cleanly
     let status = Command::new("launchctl")
-        .args(["stop", "com.endur.daemon"])
-        .status()
-        .context("Failed to run launchctl stop")?;
-    if status.success() {
+        .args([
+            "bootout",
+            &format!("gui/{uid}"),
+            plist_path.to_str().unwrap(),
+        ])
+        .status();
+
+    let stopped = match status {
+        Ok(s) if s.success() => true,
+        _ => {
+            // Fallback to unload
+            let unload_status = Command::new("launchctl")
+                .args(["unload", plist_path.to_str().unwrap()])
+                .status();
+            match unload_status {
+                Ok(s) => s.success(),
+                _ => false,
+            }
+        }
+    };
+
+    if stopped {
         Ok(())
     } else {
-        Err(anyhow!("Failed to stop launchctl service"))
+        Err(anyhow!("Failed to stop/unload launchctl service"))
     }
 }
 
