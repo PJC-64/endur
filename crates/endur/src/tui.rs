@@ -42,6 +42,90 @@ impl Drop for TerminalGuard {
     }
 }
 
+#[cfg(unix)]
+struct OutputSilencer {
+    saved_stdout: Option<std::os::unix::io::RawFd>,
+    saved_stderr: Option<std::os::unix::io::RawFd>,
+}
+
+#[cfg(unix)]
+impl OutputSilencer {
+    fn new() -> Self {
+        use std::os::unix::io::AsRawFd;
+        extern "C" {
+            fn dup(fd: i32) -> i32;
+            fn dup2(oldfd: i32, newfd: i32) -> i32;
+            fn close(fd: i32) -> i32;
+        }
+
+        if let Ok(null_file) = std::fs::OpenOptions::new()
+            .write(true)
+            .read(true)
+            .open("/dev/null")
+        {
+            let null_fd = null_file.as_raw_fd();
+            unsafe {
+                let saved_stdout = dup(1);
+                let saved_stderr = dup(2);
+                if saved_stdout >= 0 && saved_stderr >= 0 {
+                    dup2(null_fd, 1);
+                    dup2(null_fd, 2);
+                    Self {
+                        saved_stdout: Some(saved_stdout),
+                        saved_stderr: Some(saved_stderr),
+                    }
+                } else {
+                    if saved_stdout >= 0 {
+                        close(saved_stdout);
+                    }
+                    if saved_stderr >= 0 {
+                        close(saved_stderr);
+                    }
+                    Self {
+                        saved_stdout: None,
+                        saved_stderr: None,
+                    }
+                }
+            }
+        } else {
+            Self {
+                saved_stdout: None,
+                saved_stderr: None,
+            }
+        }
+    }
+}
+
+#[cfg(unix)]
+impl Drop for OutputSilencer {
+    fn drop(&mut self) {
+        extern "C" {
+            fn dup2(oldfd: i32, newfd: i32) -> i32;
+            fn close(fd: i32) -> i32;
+        }
+        unsafe {
+            if let Some(fd) = self.saved_stdout {
+                dup2(fd, 1);
+                close(fd);
+            }
+            if let Some(fd) = self.saved_stderr {
+                dup2(fd, 2);
+                close(fd);
+            }
+        }
+    }
+}
+
+#[cfg(not(unix))]
+struct OutputSilencer;
+
+#[cfg(not(unix))]
+impl OutputSilencer {
+    fn new() -> Self {
+        Self
+    }
+}
+
 #[derive(Clone)]
 pub struct TuiState {
     pub repos: Vec<PathBuf>,
@@ -1029,6 +1113,7 @@ pub async fn run_control_center() -> Result<(), Box<dyn std::error::Error>> {
                         KeyCode::Char('i') | KeyCode::Char('I') => {
                             if state.management_mode == ManagementMode::Service {
                                 state.show_message("Installing service...".to_string());
+                                let _silence = OutputSilencer::new();
                                 match crate::service::install() {
                                     Ok(_) => {
                                         state.service_installed = true;
@@ -1044,6 +1129,7 @@ pub async fn run_control_center() -> Result<(), Box<dyn std::error::Error>> {
                         KeyCode::Char('u') | KeyCode::Char('U') => {
                             if state.management_mode == ManagementMode::Service {
                                 state.show_message("Uninstalling service...".to_string());
+                                let _silence = OutputSilencer::new();
                                 match crate::service::uninstall() {
                                     Ok(_) => {
                                         state.service_installed = false;
@@ -1096,6 +1182,7 @@ pub async fn run_control_center() -> Result<(), Box<dyn std::error::Error>> {
                                         state.show_message("Service is not installed. Press [i] to install it.".to_string());
                                     } else {
                                         state.show_message("Starting service...".to_string());
+                                        let _silence = OutputSilencer::new();
                                         match crate::service::start() {
                                             Ok(_) => {
                                                 state.service_running = true;
@@ -1136,6 +1223,7 @@ pub async fn run_control_center() -> Result<(), Box<dyn std::error::Error>> {
                                         state.show_message("Service is not installed.".to_string());
                                     } else {
                                         state.show_message("Stopping service...".to_string());
+                                        let _silence = OutputSilencer::new();
                                         match crate::service::stop() {
                                             Ok(_) => {
                                                 state.service_running = false;
