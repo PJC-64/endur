@@ -46,11 +46,16 @@ impl Drop for TerminalGuard {
 struct OutputSilencer {
     saved_stdout: Option<std::os::unix::io::RawFd>,
     saved_stderr: Option<std::os::unix::io::RawFd>,
+    _null_file: Option<std::fs::File>,
 }
 
 #[cfg(unix)]
 impl OutputSilencer {
     fn new() -> Self {
+        use std::io::Write;
+        let _ = std::io::stdout().flush();
+        let _ = std::io::stderr().flush();
+
         use std::os::unix::io::AsRawFd;
         extern "C" {
             fn dup(fd: i32) -> i32;
@@ -73,6 +78,7 @@ impl OutputSilencer {
                     Self {
                         saved_stdout: Some(saved_stdout),
                         saved_stderr: Some(saved_stderr),
+                        _null_file: Some(null_file),
                     }
                 } else {
                     if saved_stdout >= 0 {
@@ -84,6 +90,7 @@ impl OutputSilencer {
                     Self {
                         saved_stdout: None,
                         saved_stderr: None,
+                        _null_file: None,
                     }
                 }
             }
@@ -91,6 +98,7 @@ impl OutputSilencer {
             Self {
                 saved_stdout: None,
                 saved_stderr: None,
+                _null_file: None,
             }
         }
     }
@@ -99,6 +107,10 @@ impl OutputSilencer {
 #[cfg(unix)]
 impl Drop for OutputSilencer {
     fn drop(&mut self) {
+        use std::io::Write;
+        let _ = std::io::stdout().flush();
+        let _ = std::io::stderr().flush();
+
         extern "C" {
             fn dup2(oldfd: i32, newfd: i32) -> i32;
             fn close(fd: i32) -> i32;
