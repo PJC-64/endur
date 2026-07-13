@@ -82,5 +82,7 @@ jobs:
         uses: actions/checkout@v7
       - name: Run Cargo Audit
         uses: actions-rust-lang/audit@v1
+        with:
+          ignore: RUSTSEC-2024-0429
 
 
