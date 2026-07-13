@@ -1,0 +1,6 @@
+[advisories]
+ignore = [
+    # Soundness issue in glib::VariantStrIter.
+    # Resolved via local patched vendor copy at patches/glib-0.18.5
+    "RUSTSEC-2024-0429",
+]

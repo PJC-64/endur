@@ -74,3 +74,13 @@ jobs:
           name: endur-${{ matrix.binary-suffix }}_${{ github.sha }}
           path: ${{ github.workspace }}/target/release/${{ matrix.binary-name }}
 
+  security-audit:
+    name: Security Audit
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out source files
+        uses: actions/checkout@v7
+      - name: Run Cargo Audit
+        uses: actions-rust-lang/audit@v1
+
+
