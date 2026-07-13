@@ -469,26 +469,25 @@ pub fn install() -> Result<()> {
     }
 
     let exe_path = get_endur_cli_path();
-    let cmd_str = format!("\"{}\" serve", exe_path.to_string_lossy());
+    let tr_arg = format!("\"{}\" serve", exe_path.to_string_lossy());
 
-    println!("Adding Endur to Windows CurrentVersion\\Run registry...");
-    let status = Command::new("reg")
+    println!("Creating Windows Scheduled Task 'EndurDaemon'...");
+    let status = Command::new("schtasks")
         .args([
-            "add",
-            r"HKCU\Software\Microsoft\Windows\CurrentVersion\Run",
-            "/v",
+            "/create",
+            "/tn",
             "EndurDaemon",
-            "/t",
-            "REG_SZ",
-            "/d",
-            &cmd_str,
+            "/tr",
+            &tr_arg,
+            "/sc",
+            "onlogon",
             "/f",
         ])
         .status()
-        .context("Failed to run reg add command")?;
+        .context("Failed to execute schtasks /create command")?;
 
     if !status.success() {
-        return Err(anyhow!("Failed to add registry entry for Endur"));
+        return Err(anyhow!("Failed to create scheduled task for Endur"));
     }
 
     start()?;
@@ -500,35 +499,24 @@ pub fn install() -> Result<()> {
 pub fn uninstall() -> Result<()> {
     let _ = stop();
 
-    println!("Removing Endur from Windows CurrentVersion\\Run registry...");
-    let status = Command::new("reg")
-        .args([
-            "delete",
-            r"HKCU\Software\Microsoft\Windows\CurrentVersion\Run",
-            "/v",
-            "EndurDaemon",
-            "/f",
-        ])
+    println!("Removing Windows Scheduled Task 'EndurDaemon'...");
+    let status = Command::new("schtasks")
+        .args(["/delete", "/tn", "EndurDaemon", "/f"])
         .status()
-        .context("Failed to run reg delete command")?;
+        .context("Failed to execute schtasks /delete command")?;
 
     if status.success() {
         println!("Endur startup service successfully uninstalled.");
     } else {
-        println!("Warning: Registry entry could not be removed (it might not have existed).");
+        println!("Warning: Scheduled task could not be deleted (it might not have existed).");
     }
     Ok(())
 }
 
 #[cfg(target_os = "windows")]
 pub fn is_installed() -> bool {
-    let output = Command::new("reg")
-        .args([
-            "query",
-            r"HKCU\Software\Microsoft\Windows\CurrentVersion\Run",
-            "/v",
-            "EndurDaemon",
-        ])
+    let output = Command::new("schtasks")
+        .args(["/query", "/tn", "EndurDaemon"])
         .output();
 
     match output {
@@ -544,22 +532,46 @@ pub fn is_running() -> Result<bool> {
 
 #[cfg(target_os = "windows")]
 pub fn start() -> Result<()> {
-    let exe_path = get_endur_cli_path();
-    let logfile_path = crate::database::RuntimeLock::get_endur_cache_home().join("endur.log");
+    if !is_installed() {
+        return Err(anyhow!(
+            "Endur scheduled task not found. Please install the service first."
+        ));
+    }
 
-    let mut cmd = Command::new(exe_path);
-    cmd.arg("serve").arg("--logfile").arg(logfile_path);
+    if is_running().unwrap_or(false) {
+        return Ok(());
+    }
 
-    use std::os::windows::process::CommandExt;
-    cmd.creation_flags(0x00000008 | 0x00000200);
+    println!("Starting Endur Scheduled Task...");
+    let status = Command::new("schtasks")
+        .args(["/run", "/tn", "EndurDaemon"])
+        .status()
+        .context("Failed to execute schtasks /run command")?;
 
-    cmd.spawn()
-        .context("Failed to spawn endur serve daemon process")?;
-    Ok(())
+    if status.success() {
+        Ok(())
+    } else {
+        // Fallback to spawning directly if schtasks /run fails
+        let exe_path = get_endur_cli_path();
+        let logfile_path = crate::database::RuntimeLock::get_endur_cache_home().join("endur.log");
+        let mut cmd = Command::new(exe_path);
+        cmd.arg("serve").arg("--logfile").arg(logfile_path);
+        use std::os::windows::process::CommandExt;
+        cmd.creation_flags(0x00000008 | 0x00000200);
+        cmd.spawn()
+            .context("Failed to spawn fallback serve daemon")?;
+        Ok(())
+    }
 }
 
 #[cfg(target_os = "windows")]
 pub fn stop() -> Result<()> {
+    if is_installed() {
+        let _ = Command::new("schtasks")
+            .args(["/end", "/tn", "EndurDaemon"])
+            .status();
+    }
+
     let exe_path = get_endur_cli_path();
     let status = Command::new(exe_path)
         .arg("kill")

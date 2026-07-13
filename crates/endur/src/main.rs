@@ -260,6 +260,24 @@ async fn main() {
             }
         }
         Some(("serve", arg_matches)) => {
+            #[cfg(target_os = "windows")]
+            {
+                #[link(name = "kernel32")]
+                extern "system" {
+                    fn GetConsoleWindow() -> *mut std::ffi::c_void;
+                }
+                #[link(name = "user32")]
+                extern "system" {
+                    fn ShowWindow(hWnd: *mut std::ffi::c_void, nCmdShow: i32) -> i32;
+                }
+                unsafe {
+                    let hwnd = GetConsoleWindow();
+                    if !hwnd.is_null() {
+                        ShowWindow(hwnd, 0); // SW_HIDE = 0
+                    }
+                }
+            }
+
             let env_filter =
                 EnvFilter::try_from_default_env().unwrap_or_else(|_| EnvFilter::new("info"));
 
