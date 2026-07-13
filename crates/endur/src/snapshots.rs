@@ -78,7 +78,7 @@ pub fn capture(path: &Path) -> Result<Option<CaptureStatus>, Error> {
 
     let committer = Signature::now(&get_git_author(&repo), &get_git_email(&repo))?;
     let oid = repo.commit(
-        Some(&format!("refs/heads/{}", &branch_name)),
+        Some(&format!("refs/heads/{}", branch_name)),
         &committer,
         &committer,
         message,
@@ -264,23 +264,15 @@ pub fn list_snapshots(path: &Path, show_all: bool) -> Result<Vec<SnapshotInfo>, 
             } else {
                 // Cache is stale – evict this repo and trigger a cold walk to refresh.
                 cache::evict_repo(&conn, path);
-                match walk_git_snapshots(path) {
-                    Ok(snaps) => {
-                        cache::upsert_snapshots(&conn, path, &snaps);
-                        Some(snaps)
-                    }
-                    Err(e) => return Err(e),
-                }
+                let snaps = walk_git_snapshots(path)?;
+                cache::upsert_snapshots(&conn, path, &snaps);
+                Some(snaps)
             }
         } else {
             // Cache cold – full Git walk then populate.
-            match walk_git_snapshots(path) {
-                Ok(snaps) => {
-                    cache::upsert_snapshots(&conn, path, &snaps);
-                    Some(snaps)
-                }
-                Err(e) => return Err(e),
-            }
+            let snaps = walk_git_snapshots(path)?;
+            cache::upsert_snapshots(&conn, path, &snaps);
+            Some(snaps)
         }
     } else {
         None

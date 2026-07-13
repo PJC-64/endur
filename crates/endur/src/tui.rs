@@ -720,13 +720,12 @@ pub fn format_log_line(line: &str) -> Option<String> {
                         "{}[{}] Repository '{}' snapshot captured: commit {}, branch {} (latency: {:.2}s)",
                         time_str, level_str, repo, short_hash, endur_branch, latency
                     ));
-                } else if let Some(err_msg) = error {
+                } else {
+                    let err_msg = error?;
                     return Some(format!(
                         "{}[{}] Repository '{}' snapshot failed: {} (latency: {:.2}s)",
                         time_str, "ERROR", repo, err_msg, latency
                     ));
-                } else {
-                    return None;
                 }
             } else if let Some(stats) = operation.get("CollectStats").and_then(|v| v.as_object()) {
                 let count = stats
