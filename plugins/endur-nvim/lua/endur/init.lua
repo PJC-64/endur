@@ -569,23 +569,23 @@ end
 -- Resolves the current buffer's git root and gets its status
 function M.get_current_repo_status()
   local file_path = vim.api.nvim_buf_get_name(0)
-  if file_path == "" then return nil end
+  if file_path == "" then return nil, nil end
 
   local dir = vim.fs.dirname(file_path)
   local git_dir = vim.fs.find(".git", { path = dir, upward = true })[1]
-  if not git_dir then return nil end
+  if not git_dir then return nil, nil end
 
   local git_root = vim.fs.dirname(git_dir)
   git_root = vim.fn.resolve(git_root)
   
-  return M.status_cache[git_root]
+  return M.status_cache[git_root], git_root
 end
 
 -- A beautiful statusline component
 function M.statusline()
   if not M.config.statusline then return "" end
-  local status_info = M.get_current_repo_status()
-  if not status_info then return "" end
+  local status_info, git_root = M.get_current_repo_status()
+  if not status_info or not git_root then return "" end
 
   local icon, hl, text
   if status_info.status == "OK" then
@@ -607,7 +607,8 @@ function M.statusline()
     text = text .. " (" .. backups .. ")"
   end
 
-  return string.format("%s %s Endur %s %%*", hl, icon, text)
+  local repo_name = vim.fs.basename(git_root)
+  return string.format("%s %s Endur[%s] %s %%*", hl, icon, repo_name, text)
 end
 
 -- Winbar integration (same format as statusline, but can be customized)
@@ -617,8 +618,8 @@ end
 
 -- A raw statusline component string without highlight codes (useful for lualine, etc.)
 function M.statusline_raw()
-  local status_info = M.get_current_repo_status()
-  if not status_info then return "" end
+  local status_info, git_root = M.get_current_repo_status()
+  if not status_info or not git_root then return "" end
 
   local icon, text
   if status_info.status == "OK" then
@@ -636,13 +637,15 @@ function M.statusline_raw()
   if backups then
     text = text .. " (" .. backups .. ")"
   end
-  return string.format("%s Endur %s", icon, text)
+
+  local repo_name = vim.fs.basename(git_root)
+  return string.format("%s Endur[%s] %s", icon, repo_name, text)
 end
 
 -- Prints the current repository status in the command line area
 function M.print_status()
-  local status_info = M.get_current_repo_status()
-  if not status_info then
+  local status_info, git_root = M.get_current_repo_status()
+  if not status_info or not git_root then
     vim.notify("endur: current file is not in a watched Git repository", vim.log.levels.WARN)
     return
   end
@@ -654,7 +657,8 @@ function M.print_status()
     status_text = "Modified"
   end
 
-  vim.notify(string.format("endur: %s (%s)", status_text, status_info.details), vim.log.levels.INFO)
+  local repo_name = vim.fs.basename(git_root)
+  vim.notify(string.format("endur [%s]: %s (%s)", repo_name, status_text, status_info.details), vim.log.levels.INFO)
 end
 
 return M
