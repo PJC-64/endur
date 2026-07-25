@@ -34,15 +34,303 @@ function M.setup(opts)
   end
 end
 
--- Launch the Telescope snapshots picker
+-- Helper to get and parse snapshot items
+local function trim(s)
+  return (s:gsub("^%s*(.-)%s*$", "%1"))
+end
+
+function M.get_snapshots_items(git_root)
+  local endur_path = M.config.endur_path
+  local command = { endur_path, "list-snapshots", git_root }
+  local output = vim.fn.systemlist(command)
+  if vim.v.shell_error ~= 0 then
+    local err = table.concat(output, "\n")
+    vim.notify("Failed to fetch Endur snapshots: " .. err, vim.log.levels.ERROR)
+    return {}
+  end
+
+  local items = {}
+  local hashes = {}
+  for i = 3, #output do
+    local line = output[i]
+    if line ~= "" then
+      local hash = trim(line:sub(1, 40))
+      if hash:match("^%x+$") and #hash == 40 then
+        local datetime = trim(line:sub(42, 66))
+        local changes = trim(line:sub(68))
+        local item = {
+          hash = hash,
+          datetime = datetime,
+          changes = changes,
+          display = string.format("%s │ %s │ %s", hash:sub(1, 8), datetime, changes),
+          files_str = changes,
+        }
+        table.insert(items, item)
+        table.insert(hashes, hash)
+      end
+    end
+  end
+
+  if #hashes > 0 then
+    local show_cmd = { "git", "-C", git_root, "show", "--name-only", "--format=HASH:%H" }
+    vim.list_extend(show_cmd, hashes)
+    local show_out = vim.fn.systemlist(show_cmd)
+    if vim.v.shell_error == 0 then
+      local current_hash = nil
+      local hash_files = {}
+      for _, line in ipairs(show_out) do
+        if line ~= "" then
+          local matched_hash = line:match("^HASH:(%x+)")
+          if matched_hash then
+            current_hash = matched_hash
+            hash_files[current_hash] = {}
+          elseif current_hash then
+            local filename = trim(line)
+            if filename ~= "" then
+              table.insert(hash_files[current_hash], filename)
+            end
+          end
+        end
+      end
+
+      for _, item in ipairs(items) do
+        local files = hash_files[item.hash] or {}
+        local files_str
+        if #files > 3 then
+          files_str = string.format("%s, %s, and %d more", files[1], files[2], #files - 2)
+        elseif #files > 0 then
+          files_str = table.concat(files, ", ")
+        else
+          files_str = item.changes
+        end
+        item.files_str = files_str
+        item.display = string.format("%s │ %s │ %s", item.hash:sub(1, 8), item.datetime, files_str)
+      end
+    end
+  end
+
+  return items
+end
+
+-- Launch the snapshots picker (automatically chooses Snacks, Fzf-Lua, or Telescope)
 function M.snapshots()
-  local ok, telescope = pcall(require, "telescope")
-  if not ok then
-    vim.notify("Telescope.nvim is required for the snapshots picker", vim.log.levels.ERROR)
+  local has_snacks, snacks = pcall(require, "snacks")
+  if has_snacks and snacks.picker then
+    M.snapshots_snacks()
     return
   end
-  telescope.load_extension("endur")
-  telescope.extensions.endur.snapshots()
+
+  local has_fzf, fzf = pcall(require, "fzf-lua")
+  if has_fzf then
+    M.snapshots_fzf()
+    return
+  end
+
+  local ok, telescope = pcall(require, "telescope")
+  if ok then
+    telescope.load_extension("endur")
+    telescope.extensions.endur.snapshots()
+    return
+  end
+
+  vim.notify("endur: No supported picker found. Please install snacks.nvim, fzf-lua, or telescope.nvim.", vim.log.levels.ERROR)
+end
+
+-- Snacks Picker Implementation
+function M.snapshots_snacks()
+  local current_dir = vim.fn.expand("%:p:h")
+  local current_file = vim.fn.expand("%:p:t")
+  local current_file_path = vim.api.nvim_buf_get_name(0)
+
+  local git_dir = vim.fs.find(".git", { path = current_dir, upward = true })[1]
+  if not git_dir then
+    vim.notify("endur: Not in a Git repository", vim.log.levels.ERROR)
+    return
+  end
+  local git_root = vim.fs.dirname(git_dir)
+
+  local items = M.get_snapshots_items(git_root)
+  if #items == 0 then return end
+
+  local snacks_items = {}
+  for _, item in ipairs(items) do
+    table.insert(snacks_items, {
+      text = item.display,
+      hash = item.hash,
+      datetime = item.datetime,
+      changes = item.changes,
+      files_str = item.files_str,
+    })
+  end
+
+  local snacks = require("snacks")
+  local endur_path = M.config.endur_path
+
+  snacks.picker.pick({
+    source = "endur",
+    prompt = "Endur Snapshots (" .. vim.fs.basename(git_root) .. ")",
+    items = snacks_items,
+    preview = function(ctx)
+      if not ctx or not ctx.item then return end
+      local cmd = { "git", "-C", git_root, "show", "--stat", "-p", ctx.item.hash }
+      vim.fn.jobstart(cmd, {
+        stdout_buffered = true,
+        on_stdout = function(_, data)
+          if data and vim.api.nvim_buf_is_valid(ctx.buf) then
+            vim.api.nvim_buf_set_lines(ctx.buf, 0, -1, false, data)
+            vim.api.nvim_set_option_value("filetype", "diff", { buf = ctx.buf })
+          end
+        end
+      })
+    end,
+    confirm = function(picker, item)
+      picker:close()
+      if not item then return end
+      local hash = item.hash
+      vim.ui.input({
+        prompt = "Restore ENTIRE repository to snapshot " .. hash:sub(1, 8) .. "? Type 'yes' to confirm: "
+      }, function(input)
+        if input and input:lower() == "yes" then
+          vim.notify("Restoring repository to snapshot " .. hash:sub(1, 8) .. "...")
+          local out = vim.fn.system({ endur_path, "restore", hash, git_root })
+          if vim.v.shell_error ~= 0 then
+            vim.notify("endur: restore failed: " .. out, vim.log.levels.ERROR)
+          else
+            vim.notify("endur: successfully restored repository to snapshot " .. hash:sub(1, 8), vim.log.levels.INFO)
+            vim.cmd("edit!")
+          end
+        else
+          vim.notify("endur: restore aborted", vim.log.levels.INFO)
+        end
+      end)
+    end,
+    win = {
+      input = {
+        keys = {
+          ["<C-f>"] = { "restore_file", mode = { "i", "n" } },
+        },
+      },
+    },
+    actions = {
+      restore_file = function(picker, item)
+        picker:close()
+        item = item or picker:current()
+        if not item then return end
+        local hash = item.hash
+        vim.ui.input({
+          prompt = "Restore current file '" .. current_file .. "' to snapshot " .. hash:sub(1, 8) .. "? (y/N): "
+        }, function(input)
+          if input and input:lower():match("^y") then
+            vim.notify("Restoring " .. current_file .. " to snapshot " .. hash:sub(1, 8) .. "...")
+            local out = vim.fn.system({ endur_path, "restore", hash, git_root, "-f", current_file_path })
+            if vim.v.shell_error ~= 0 then
+              vim.notify("endur: restore failed: " .. out, vim.log.levels.ERROR)
+            else
+              vim.notify("endur: successfully restored " .. current_file .. " to snapshot " .. hash:sub(1, 8), vim.log.levels.INFO)
+              vim.cmd("edit!")
+            end
+          else
+            vim.notify("endur: restore aborted", vim.log.levels.INFO)
+          end
+        end)
+      end
+    }
+  })
+end
+
+-- Fzf-Lua Picker Implementation
+function M.snapshots_fzf()
+  local current_dir = vim.fn.expand("%:p:h")
+  local current_file = vim.fn.expand("%:p:t")
+  local current_file_path = vim.api.nvim_buf_get_name(0)
+
+  local git_dir = vim.fs.find(".git", { path = current_dir, upward = true })[1]
+  if not git_dir then
+    vim.notify("endur: Not in a Git repository", vim.log.levels.ERROR)
+    return
+  end
+  local git_root = vim.fs.dirname(git_dir)
+
+  local items = M.get_snapshots_items(git_root)
+  if #items == 0 then return end
+
+  local fzf_items = {}
+  local hash_map = {}
+  for _, item in ipairs(items) do
+    table.insert(fzf_items, item.display)
+    hash_map[item.display] = item.hash
+  end
+
+  local fzf = require("fzf-lua")
+  local endur_path = M.config.endur_path
+
+  fzf.fzf_exec(fzf_items, {
+    prompt = "Endur Snapshots (" .. vim.fs.basename(git_root) .. ")> ",
+    preview = function(selected)
+      if not selected or #selected == 0 then return end
+      local hash = hash_map[selected[1]]
+      if not hash then return end
+      return "git -C " .. vim.fn.shellescape(git_root) .. " show --stat -p " .. hash
+    end,
+    actions = {
+      ["default"] = function(selected)
+        if not selected or #selected == 0 then return end
+        local hash = hash_map[selected[1]]
+        if not hash then return end
+        vim.ui.input({
+          prompt = "Restore ENTIRE repository to snapshot " .. hash:sub(1, 8) .. "? Type 'yes' to confirm: "
+        }, function(input)
+          if input and input:lower() == "yes" then
+            vim.notify("Restoring repository to snapshot " .. hash:sub(1, 8) .. "...")
+            local out = vim.fn.system({ endur_path, "restore", hash, git_root })
+            if vim.v.shell_error ~= 0 then
+              vim.notify("endur: restore failed: " .. out, vim.log.levels.ERROR)
+            else
+              vim.notify("endur: successfully restored repository to snapshot " .. hash:sub(1, 8), vim.log.levels.INFO)
+              vim.cmd("edit!")
+            end
+          else
+            vim.notify("endur: restore aborted", vim.log.levels.INFO)
+          end
+        end)
+      end,
+      ["ctrl-f"] = function(selected)
+        if not selected or #selected == 0 then return end
+        local hash = hash_map[selected[1]]
+        if not hash then return end
+        vim.ui.input({
+          prompt = "Restore current file '" .. current_file .. "' to snapshot " .. hash:sub(1, 8) .. "? (y/N): "
+        }, function(input)
+          if input and input:lower():match("^y") then
+            vim.notify("Restoring " .. current_file .. " to snapshot " .. hash:sub(1, 8) .. "...")
+            local out = vim.fn.system({ endur_path, "restore", hash, git_root, "-f", current_file_path })
+            if vim.v.shell_error ~= 0 then
+              vim.notify("endur: restore failed: " .. out, vim.log.levels.ERROR)
+            else
+              vim.notify("endur: successfully restored " .. current_file .. " to snapshot " .. hash:sub(1, 8), vim.log.levels.INFO)
+              vim.cmd("edit!")
+            end
+          else
+            vim.notify("endur: restore aborted", vim.log.levels.INFO)
+          end
+        end)
+      end
+    }
+  })
+end
+
+-- Open the Endur interactive TUI in a floating terminal
+function M.tui()
+  local has_snacks, snacks = pcall(require, "snacks")
+  if has_snacks and snacks.terminal then
+    snacks.terminal.open({ M.config.endur_path, "tui" })
+    return
+  end
+
+  -- Fallback to standard terminal
+  vim.cmd("tabnew")
+  vim.fn.termopen({ M.config.endur_path, "tui" })
+  vim.cmd("startinsert")
 end
 
 -- Setup autocommands to run endur watch on active buffers
