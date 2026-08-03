@@ -5,6 +5,7 @@ use std::path::Path;
 
 use crate::cache;
 use crate::config::Config;
+pub use crate::snapshot_info::SnapshotInfo;
 
 #[derive(Debug, Serialize, Deserialize, Eq, PartialEq)]
 pub struct CaptureStatus {
@@ -146,14 +147,7 @@ fn get_git_email(repo: &Repository) -> String {
     "endur@github.io".to_string()
 }
 
-#[derive(Debug, Serialize, Deserialize, Eq, PartialEq, Clone)]
-pub struct SnapshotInfo {
-    pub commit_hash: String,
-    pub base_hash: String,
-    pub timestamp: i64,
-    pub message: String,
-    pub files_changed: usize,
-}
+
 
 /// Walk all `endur/*` branches and collect snapshot commits directly from Git.
 ///

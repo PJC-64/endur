@@ -1,5 +1,6 @@
 use crate::config::Config;
-use crate::snapshots::{self, SnapshotInfo};
+use crate::snapshots;
+use crate::snapshot_info::SnapshotInfo;
 use chrono::TimeZone;
 use ratatui::{
     backend::CrosstermBackend,

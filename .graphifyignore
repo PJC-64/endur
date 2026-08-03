@@ -1,0 +1,2 @@
+# Exclude the vendored glib patches folder from code indexing
+patches/

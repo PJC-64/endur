@@ -8,7 +8,7 @@ use rusqlite::{params, Connection, Result as SqlResult};
 use std::path::{Path, PathBuf};
 
 use crate::database::RuntimeLock;
-use crate::snapshots::SnapshotInfo;
+use crate::snapshot_info::SnapshotInfo;
 
 // ---------------------------------------------------------------------------
 // Path helpers
