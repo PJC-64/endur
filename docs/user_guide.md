@@ -78,7 +78,12 @@ Endur favors running as an OS-level background startup service rather than a man
     ```bash
     endur service install
     ```
-    This writes the appropriate configuration (`launchd` plist on macOS, `systemd` user service on Linux, or Windows Task Scheduler task on Windows) and loads and starts the background service immediately. If a version of the service is already installed, running this will cleanly stop and remove it first, then register and start the latest version.
+    This writes the appropriate configuration:
+    *   **macOS**: Registers a user launch agent plist (`~/Library/LaunchAgents/com.endur.daemon.plist`) loaded via `launchctl`.
+    *   **Linux**: Configures and enables a user systemd service (`~/.config/systemd/user/endur.service`).
+    *   **Windows**: Registers a Scheduled Task (`EndurDaemon`) running `/sc onlogon` under the current user's profile with window creation suppressed (`CREATE_NO_WINDOW`), running silently in the background without UAC prompts.
+    
+    If a version of the service is already installed, running this will cleanly stop and remove it first, then register and start the latest version.
 
 *   **Uninstall Service**:
     ```bash
@@ -440,7 +445,7 @@ Manage endur background service
 Usage: endur service [COMMAND]
 
 Commands:
-  install    Install endur as a system startup service (launchd on macOS, systemd on Linux)
+  install    Install endur as a system startup service (launchd on macOS, systemd on Linux, Task Scheduler on Windows)
   uninstall  Uninstall endur startup service
   help       Print this message or the help of the given subcommand(s)
 
@@ -490,3 +495,20 @@ Options:
       --dry-run             List what would be deleted without actually deleting
   -h, --help                Print help
 ```
+
+---
+
+## Editor Integrations
+
+### Neovim Plugin (`endur-nvim`)
+A companion Neovim plugin is available in [`plugins/endur-nvim`](file:///Users/pjc/Development/endur/plugins/endur-nvim).
+
+#### Highlights:
+* **Automatic Watching**: Automatically registers repositories with `endur watch` whenever buffers are written.
+* **Contextual Statusline**: Formats statusline components with the active repository name and uncommitted state (e.g., `Endur[my-project] Clean (3)` or `Endur[my-project] Modified (1)`).
+* **Multi-Picker Snapshot Recovery**:
+  * `:EndurSnapshots` — Interactive snapshot selector with side-by-side patch diff preview via Telescope.
+  * `:EndurSnapshotsSnacks` — Fast snapshot navigation via `snacks.nvim` picker with diff preview and `<C-f>` single-file restore action.
+  * `:EndurSnapshotsFzf` — `fzf-lua` snapshot picker.
+  * `:EndurTUI` — Launches the interactive `endur tui` Control Center in a floating terminal window inside Neovim.
+  * `:EndurStatus` — Prints the monitored status of the current file's repository.

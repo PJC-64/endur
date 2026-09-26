@@ -82,6 +82,9 @@ graph TD
     *   `snapshots::list_snapshots(path, show_all)` queries the cache first (falling back to a Git walk if cold or failed).
     *   When `show_all` is `false` (default), snapshots are filtered to only those whose `base_hash` matches the current `HEAD` commit hash. This hides snapshots that are older than the latest formal commit.
     *   When `show_all` is `true`, all snapshots recorded for the repository are returned.
+*   **Decoupled DTO Architecture (`src/snapshot_info.rs`)**:
+    *   The `SnapshotInfo` struct is defined in a standalone module (`snapshot_info.rs`) rather than inside `snapshots.rs`.
+    *   This eliminates bidirectional module dependencies between `cache.rs` and `snapshots.rs`, ensuring a completely acyclic architecture.
 
 ### 6b. Snapshot Pruning Logic ([src/prune.rs](file:///Users/pjc/Development/endur/crates/endur/src/prune.rs))
 *   **`prune::prune`**: Filters and deletes historical snapshot branches.
@@ -98,10 +101,15 @@ graph TD
     *   **Live Log Streaming**: Spawns an asynchronous log tail watcher that tails changes to `endur.log` and feeds new lines directly into the state machine to trigger real-time UI updates.
     *   **Multi-Tab Architecture**: Tracks the active view using a `ControlCenterTab` enum (tabs: `Repositories`, `Backups`, `Log`, `Metrics`).
 *   **Safe Terminal RAII**: An RAII wrapper `TerminalGuard` manages terminal raw mode, alternate screen buffers, and cursor visibility, ensuring the shell is always cleanly restored on program exit or panic.
+*   **Cross-Platform Output Silencing (`OutputSilencer`)**:
+    *   Temporarily suppresses stdout/stderr during operations that execute subprocesses (e.g. service installation or daemon controls) while the terminal is in raw mode.
+    *   *Unix*: Redirects file descriptors `1` and `2` to `/dev/null` using `dup`/`dup2`.
+    *   *Windows*: Redirects standard console handles `STD_OUTPUT_HANDLE` and `STD_ERROR_HANDLE` to `NUL` using `GetStdHandle`/`SetStdHandle`, restoring original handles upon `Drop`.
 
 ### 8. Background Service Management ([src/service.rs](file:///Users/pjc/Development/endur/src/service.rs))
-*   **macOS (`launchctl` Integration)**: Creates `~/Library/LaunchAgents/com.endur.daemon.plist` configured to run `endur serve` in the background, and registers it using the modern `launchctl bootstrap` framework (falling back to `launchctl load` if necessary).
+*   **macOS (`launchctl` Integration)**: Creates `~/Library/LaunchAgents/com.endur.daemon.plist` configured to run `endur serve` in the background, and registers it using the modern `launchctl bootstrap` framework (falling back to `launchctl load` if necessary). Patched to ensure that stopping the service does not trigger an immediate restart.
 *   **Linux (`systemd` Integration)**: Configures a systemd user unit at `~/.config/systemd/user/endur.service` and executes systemd commands to daemon-reload, enable, and start/stop the service.
+*   **Windows (`schtasks` Integration)**: Registers a Scheduled Task `EndurDaemon` configured to launch on logon (`/sc onlogon`) under the current user's profile context. Subprocesses are executed with `CREATE_NO_WINDOW` (`0x08000000`) and standard output is captured via `.output()`, preventing any visible console window popups or TUI buffer pollution.
 
 ### 9. Desktop GUI Application ([crates/endur-desktop](file:///Users/pjc/Development/endur/crates/endur-desktop))
 

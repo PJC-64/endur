@@ -24,9 +24,16 @@ Using [lazy.nvim](https://github.com/folke/lazy.nvim):
 ## Usage
 - `:EndurWatch` — Manually registers the current file's repository path with Endur.
 - `:EndurSnapshots` — Opens the Telescope snapshot picker to view or restore snapshots.
+- `:EndurSnapshotsSnacks` — Opens the Snacks.nvim snapshot picker with side-by-side diff previews and `<C-f>` single-file restore action.
+- `:EndurSnapshotsFzf` — Opens the `fzf-lua` snapshot picker.
+- `:EndurTUI` — Launches the interactive `endur tui` Control Center inside an embedded floating terminal.
 - `:EndurStatus` — Prints the status of the current repository in the command line area.
 
 ## Statusline Integration
+The statusline component automatically detects the base directory name of your Git repository and renders contextual information:
+* `Endur[my-project] Clean (3)` — Daemon active, 3 snapshots since last commit, no uncommitted changes.
+* `Endur[my-project] Modified (2)` — Daemon active, 2 snapshots since last commit, uncommitted changes pending backup debounce.
+* `Endur Off` — Daemon is stopped or current buffer is outside a watched repository.
 
 ### 1. Built-in Statusline
 Set `statusline = true` in setup options, then append `%{%v:lua.require('endur').statusline()%}` to your `statusline` setting.
