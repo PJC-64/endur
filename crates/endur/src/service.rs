@@ -461,37 +461,48 @@ pub fn stop() -> Result<()> {
     }
 }
 
+/// Runs a `schtasks` command with `CREATE_NO_WINDOW` to prevent console flashes,
+/// capturing stdout/stderr to avoid corrupting the TUI display.
+#[cfg(target_os = "windows")]
+fn schtasks_cmd(args: &[&str]) -> std::io::Result<std::process::Output> {
+    use std::os::windows::process::CommandExt;
+    const CREATE_NO_WINDOW: u32 = 0x08000000;
+    Command::new("schtasks")
+        .args(args)
+        .creation_flags(CREATE_NO_WINDOW)
+        .output()
+}
+
 #[cfg(target_os = "windows")]
 pub fn install() -> Result<()> {
     if is_installed() {
-        println!("Service is already installed. Performing reinstallation...");
         let _ = uninstall();
     }
 
     let exe_path = get_endur_cli_path();
     let tr_arg = format!("\"{}\" serve", exe_path.to_string_lossy());
 
-    println!("Creating Windows Scheduled Task 'EndurDaemon'...");
-    let status = Command::new("schtasks")
-        .args([
-            "/create",
-            "/tn",
-            "EndurDaemon",
-            "/tr",
-            &tr_arg,
-            "/sc",
-            "onlogon",
-            "/f",
-        ])
-        .status()
-        .context("Failed to execute schtasks /create command")?;
+    let output = schtasks_cmd(&[
+        "/create",
+        "/tn",
+        "EndurDaemon",
+        "/tr",
+        &tr_arg,
+        "/sc",
+        "onlogon",
+        "/f",
+    ])
+    .context("Failed to execute schtasks /create command")?;
 
-    if !status.success() {
-        return Err(anyhow!("Failed to create scheduled task for Endur"));
+    if !output.status.success() {
+        let stderr = String::from_utf8_lossy(&output.stderr);
+        return Err(anyhow!(
+            "Failed to create scheduled task for Endur: {}",
+            stderr.trim()
+        ));
     }
 
     start()?;
-    println!("Endur startup service successfully installed and started.");
     Ok(())
 }
 
@@ -499,30 +510,20 @@ pub fn install() -> Result<()> {
 pub fn uninstall() -> Result<()> {
     let _ = stop();
 
-    println!("Removing Windows Scheduled Task 'EndurDaemon'...");
-    let status = Command::new("schtasks")
-        .args(["/delete", "/tn", "EndurDaemon", "/f"])
-        .status()
+    let output = schtasks_cmd(&["/delete", "/tn", "EndurDaemon", "/f"])
         .context("Failed to execute schtasks /delete command")?;
 
-    if status.success() {
-        println!("Endur startup service successfully uninstalled.");
-    } else {
-        println!("Warning: Scheduled task could not be deleted (it might not have existed).");
+    if !output.status.success() {
+        // Not a hard failure — task may not have existed
     }
     Ok(())
 }
 
 #[cfg(target_os = "windows")]
 pub fn is_installed() -> bool {
-    let output = Command::new("schtasks")
-        .args(["/query", "/tn", "EndurDaemon"])
-        .output();
-
-    match output {
-        Ok(out) => out.status.success(),
-        Err(_) => false,
-    }
+    schtasks_cmd(&["/query", "/tn", "EndurDaemon"])
+        .map(|out| out.status.success())
+        .unwrap_or(false)
 }
 
 #[cfg(target_os = "windows")]
@@ -542,13 +543,10 @@ pub fn start() -> Result<()> {
         return Ok(());
     }
 
-    println!("Starting Endur Scheduled Task...");
-    let status = Command::new("schtasks")
-        .args(["/run", "/tn", "EndurDaemon"])
-        .status()
+    let output = schtasks_cmd(&["/run", "/tn", "EndurDaemon"])
         .context("Failed to execute schtasks /run command")?;
 
-    if status.success() {
+    if output.status.success() {
         Ok(())
     } else {
         // Fallback to spawning directly if schtasks /run fails
@@ -567,18 +565,19 @@ pub fn start() -> Result<()> {
 #[cfg(target_os = "windows")]
 pub fn stop() -> Result<()> {
     if is_installed() {
-        let _ = Command::new("schtasks")
-            .args(["/end", "/tn", "EndurDaemon"])
-            .status();
+        let _ = schtasks_cmd(&["/end", "/tn", "EndurDaemon"]);
     }
 
     let exe_path = get_endur_cli_path();
-    let status = Command::new(exe_path)
+    use std::os::windows::process::CommandExt;
+    const CREATE_NO_WINDOW: u32 = 0x08000000;
+    let output = Command::new(exe_path)
         .arg("kill")
-        .status()
+        .creation_flags(CREATE_NO_WINDOW)
+        .output()
         .context("Failed to run endur kill command")?;
 
-    if status.success() {
+    if output.status.success() {
         Ok(())
     } else {
         Err(anyhow!("Failed to stop endur daemon"))
