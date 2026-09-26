@@ -128,10 +128,85 @@ impl Drop for OutputSilencer {
     }
 }
 
-#[cfg(not(unix))]
+#[cfg(windows)]
+struct OutputSilencer {
+    saved_stdout: Option<*mut std::ffi::c_void>,
+    saved_stderr: Option<*mut std::ffi::c_void>,
+    _null_file: Option<std::fs::File>,
+}
+
+#[cfg(windows)]
+impl OutputSilencer {
+    fn new() -> Self {
+        use std::io::Write;
+        let _ = std::io::stdout().flush();
+        let _ = std::io::stderr().flush();
+
+        use std::os::windows::io::AsRawHandle;
+
+        extern "system" {
+            fn GetStdHandle(nStdHandle: u32) -> *mut std::ffi::c_void;
+            fn SetStdHandle(nStdHandle: u32, hHandle: *mut std::ffi::c_void) -> i32;
+        }
+        const STD_OUTPUT_HANDLE: u32 = 0xFFFF_FFF5; // -11i32 as u32
+        const STD_ERROR_HANDLE: u32 = 0xFFFF_FFF4; // -12i32 as u32
+
+        if let Ok(null_file) = std::fs::OpenOptions::new()
+            .write(true)
+            .read(true)
+            .open("NUL")
+        {
+            let null_handle = null_file.as_raw_handle() as *mut std::ffi::c_void;
+            unsafe {
+                let saved_stdout = GetStdHandle(STD_OUTPUT_HANDLE);
+                let saved_stderr = GetStdHandle(STD_ERROR_HANDLE);
+                SetStdHandle(STD_OUTPUT_HANDLE, null_handle);
+                SetStdHandle(STD_ERROR_HANDLE, null_handle);
+                Self {
+                    saved_stdout: Some(saved_stdout),
+                    saved_stderr: Some(saved_stderr),
+                    _null_file: Some(null_file),
+                }
+            }
+        } else {
+            Self {
+                saved_stdout: None,
+                saved_stderr: None,
+                _null_file: None,
+            }
+        }
+    }
+}
+
+#[cfg(windows)]
+impl Drop for OutputSilencer {
+    fn drop(&mut self) {
+        use std::io::Write;
+        let _ = std::io::stdout().flush();
+        let _ = std::io::stderr().flush();
+
+        extern "system" {
+            fn SetStdHandle(nStdHandle: u32, hHandle: *mut std::ffi::c_void) -> i32;
+        }
+        const STD_OUTPUT_HANDLE: u32 = 0xFFFF_FFF5;
+        const STD_ERROR_HANDLE: u32 = 0xFFFF_FFF4;
+
+        unsafe {
+            if let Some(handle) = self.saved_stdout {
+                SetStdHandle(STD_OUTPUT_HANDLE, handle);
+            }
+            if let Some(handle) = self.saved_stderr {
+                SetStdHandle(STD_ERROR_HANDLE, handle);
+            }
+        }
+    }
+}
+
+// Fallback for platforms that are neither unix nor windows
+#[cfg(not(any(unix, windows)))]
 struct OutputSilencer;
 
-#[cfg(not(unix))]
+#[cfg(not(any(unix, windows)))]
 impl OutputSilencer {
     fn new() -> Self {
         Self

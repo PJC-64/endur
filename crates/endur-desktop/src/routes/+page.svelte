@@ -1326,7 +1326,7 @@
           }
         }}
         onclick={(e) => {
-          if (e.target === dialogElement) {
+          if (dialogElement && e.target === dialogElement) {
             const rect = dialogElement.getBoundingClientRect();
             const clickInside = (
               rect.top <= e.clientY &&
