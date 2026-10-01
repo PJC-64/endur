@@ -156,7 +156,7 @@ impl OutputSilencer {
             .read(true)
             .open("NUL")
         {
-            let null_handle = null_file.as_raw_handle() as *mut std::ffi::c_void;
+            let null_handle = null_file.as_raw_handle();
             unsafe {
                 let saved_stdout = GetStdHandle(STD_OUTPUT_HANDLE);
                 let saved_stderr = GetStdHandle(STD_ERROR_HANDLE);
