@@ -311,6 +311,29 @@ fn test_get_snapshot_files() {
 }
 
 #[test]
+fn test_get_snapshot_files_with_deleted_file() {
+    let tmp = tempfile::tempdir().unwrap();
+    let repo = repo_and_file!(tmp, "foo.txt");
+    repo.write_file("bar.txt");
+    repo.commit_all();
+
+    // Delete bar.txt
+    std::fs::remove_file(repo.dir.join("bar.txt")).unwrap();
+    let status = snapshots::capture(repo.dir.as_path()).unwrap().unwrap();
+
+    let files = snapshots::get_snapshot_files(repo.dir.as_path(), &status.commit_hash).unwrap();
+    assert_eq!(files.len(), 1);
+    assert_eq!(files[0].0, 'D');
+    assert_eq!(files[0].1, "bar.txt");
+
+    // Also test restore returns the deleted file with path
+    let changes = snapshots::restore(repo.dir.as_path(), &status.commit_hash, None).unwrap();
+    assert_eq!(changes.len(), 1);
+    assert_eq!(changes[0].0, 'D');
+    assert_eq!(changes[0].1, "bar.txt");
+}
+
+#[test]
 #[serial]
 fn test_list_snapshots_stale_cache_invalidation() {
     let tmp = tempfile::tempdir().unwrap();

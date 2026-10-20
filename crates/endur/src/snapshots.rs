@@ -322,6 +322,7 @@ pub fn restore(
                     let path_str = delta
                         .new_file()
                         .path()
+                        .or_else(|| delta.old_file().path())
                         .and_then(|p| p.to_str())
                         .unwrap_or("")
                         .to_string();
@@ -379,6 +380,7 @@ pub fn get_snapshot_files(path: &Path, commit_hash: &str) -> Result<Vec<(char, S
             let path_str = delta
                 .new_file()
                 .path()
+                .or_else(|| delta.old_file().path())
                 .and_then(|p| p.to_str())
                 .unwrap_or("")
                 .to_string();

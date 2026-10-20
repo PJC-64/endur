@@ -128,12 +128,27 @@ impl Config {
             .ok_or_else(|| "Could not find your config directory. The default is ~/.config/endur but it can also be controlled by setting the ENDUR_CONFIG_HOME environment variable.".into())
     }
 
-    /// Load Config from default path
+    /// Load Config from default path. If the file exists but cannot be parsed,
+    /// prints an error and aborts to prevent overwriting user configuration.
     pub fn load() -> Self {
-        match Self::default_path() {
-            Ok(path) => Self::load_file(&path).unwrap_or_else(|_| Self::empty()),
-            Err(_) => Self::empty(),
+        match Self::load_or_err() {
+            Ok(cfg) => cfg,
+            Err(e) => {
+                eprintln!("Error reading config file: {e}. Fix or remove the file to continue.");
+                std::process::exit(1);
+            }
         }
+    }
+
+    /// Attempts to load config from the default path.
+    /// Returns Ok(Self::empty()) if the config file does not exist.
+    /// Returns Err if the file exists but cannot be read or parsed.
+    pub fn load_or_err() -> Result<Self> {
+        let path = Self::default_path()?;
+        if !path.exists() {
+            return Ok(Self::empty());
+        }
+        Self::load_file(&path)
     }
 
     pub fn load_file(path: &Path) -> Result<Self> {
@@ -166,7 +181,7 @@ impl Config {
         }
     }
 
-    /// Attempts to create parent dirs, serialize `self` as TOML and write to disk.
+    /// Attempts to create parent dirs, serialize `self` as TOML and atomically write to disk.
     pub fn save_to_path(&self, path: &Path) {
         if let Err(e) = Self::create_dir(path) {
             eprintln!("{e}");
@@ -176,14 +191,20 @@ impl Config {
         let config_string = match toml::to_string(self) {
             Ok(v) => v,
             Err(e) => {
-                println!("Unexpected error when deserializing config: {e}");
+                eprintln!("Unexpected error when serializing config: {e}");
                 return;
             }
         };
 
-        match fs::write(path, config_string) {
-            Ok(_) => (),
-            Err(e) => println!("Unable to initialize endur config file: {e}"),
+        let temp_path = path.with_extension("tmp");
+        if let Err(e) = fs::write(&temp_path, &config_string) {
+            eprintln!("Unable to write temp config file: {e}");
+            return;
+        }
+
+        if let Err(e) = fs::rename(&temp_path, path) {
+            eprintln!("Unable to update config file: {e}");
+            let _ = fs::remove_file(&temp_path);
         }
     }
 

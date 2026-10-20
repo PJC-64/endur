@@ -368,7 +368,7 @@ fn scrape_git(
 
             let files: Vec<_> = diff
                 .deltas()
-                .flat_map(|d| d.new_file().path())
+                .flat_map(|d| d.new_file().path().or_else(|| d.old_file().path()))
                 .map(|p| p.to_str())
                 .collect();
             value["files_changed"] = json!(files);

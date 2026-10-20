@@ -86,6 +86,16 @@ pub async fn control_daemon(action: String) -> Result<(), String> {
             let _ = poller::send_uds_command("kill").await;
             if RuntimeLock::is_active() {
                 let mut lock = RuntimeLock::load();
+                if let Some(pid) = lock.pid {
+                    let _ = RuntimeLock::kill_process(pid);
+                    for _ in 0..10 {
+                        tokio::time::sleep(std::time::Duration::from_millis(100)).await;
+                        if !RuntimeLock::is_active() {
+                            break;
+                        }
+                    }
+                }
+                lock = RuntimeLock::load();
                 lock.pid = None;
                 lock.save();
             }

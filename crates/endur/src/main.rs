@@ -730,9 +730,23 @@ async fn kill() {
         Err(_) => {
             if RuntimeLock::is_active() {
                 let mut runtime_lock = RuntimeLock::load();
-                runtime_lock.pid = None;
-                runtime_lock.save();
-                println!("Endur server terminated via lock file fallback.");
+                if let Some(pid) = runtime_lock.pid {
+                    let _ = RuntimeLock::kill_process(pid);
+                    for _ in 0..10 {
+                        tokio::time::sleep(std::time::Duration::from_millis(100)).await;
+                        if !RuntimeLock::is_active() {
+                            break;
+                        }
+                    }
+                    runtime_lock = RuntimeLock::load();
+                    runtime_lock.pid = None;
+                    runtime_lock.save();
+                    println!("Endur server (PID {pid}) terminated via process signal fallback.");
+                } else {
+                    runtime_lock.pid = None;
+                    runtime_lock.save();
+                    println!("Endur server lock file cleared (no active PID recorded).");
+                }
             } else {
                 println!("Endur server is not running.");
             }

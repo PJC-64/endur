@@ -128,6 +128,31 @@ impl RuntimeLock {
         self.save_to_path(Self::default_path().as_path())
     }
 
+    /// Terminate process by PID using OS signal / command
+    pub fn kill_process(pid: u32) -> bool {
+        #[cfg(unix)]
+        {
+            std::process::Command::new("kill")
+                .arg(pid.to_string())
+                .status()
+                .map(|s| s.success())
+                .unwrap_or(false)
+        }
+        #[cfg(windows)]
+        {
+            std::process::Command::new("taskkill")
+                .args(["/F", "/PID", &pid.to_string()])
+                .output()
+                .map(|out| out.status.success())
+                .unwrap_or(false)
+        }
+        #[cfg(not(any(unix, windows)))]
+        {
+            let _ = pid;
+            false
+        }
+    }
+
     /// Attempts to create parent dirs, serialize `self` as JSON and write to disk.
     pub fn save_to_path(&self, path: &Path) {
         Self::create_dir(path);

@@ -82,20 +82,22 @@ pub fn prune(path: &Path, options: &PruneOptions) -> Result<PruneReport, Error> 
             .collect::<Vec<_>>()
     } else if let Some(keep_n) = options.keep_last_n {
         // Collect the last N formal commits reachable from HEAD.
+        let head_ref = repo.head().map_err(|e| {
+            Error::from_str(&format!("Cannot determine HEAD for --keep: {e}"))
+        })?;
+        let head_commit = head_ref.peel_to_commit().map_err(|e| {
+            Error::from_str(&format!("Cannot peel HEAD to commit for --keep: {e}"))
+        })?;
+        let mut revwalk = repo.revwalk()?;
+        revwalk.push(head_commit.id())?;
         let mut keep_commits = HashSet::new();
-        if let Ok(head_ref) = repo.head() {
-            if let Ok(head_commit) = head_ref.peel_to_commit() {
-                let mut revwalk = repo.revwalk()?;
-                revwalk.push(head_commit.id())?;
-                let mut count = 0;
-                for oid in revwalk.flatten() {
-                    if count < keep_n {
-                        keep_commits.insert(oid);
-                        count += 1;
-                    } else {
-                        break;
-                    }
-                }
+        let mut count = 0;
+        for oid in revwalk.flatten() {
+            if count < keep_n {
+                keep_commits.insert(oid);
+                count += 1;
+            } else {
+                break;
             }
         }
 
