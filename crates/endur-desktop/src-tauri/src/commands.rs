@@ -51,12 +51,7 @@ pub async fn get_daemon_status() -> Result<DaemonStatus, String> {
 pub async fn control_daemon(action: String) -> Result<(), String> {
     match action.as_str() {
         "start" => {
-            let home_dir =
-                dirs::home_dir().ok_or_else(|| "Could not determine home directory".to_string())?;
-            let mut endur_path = home_dir.join(".cargo/bin/endur");
-            if !endur_path.exists() {
-                endur_path = PathBuf::from("endur");
-            }
+            let endur_path = service::get_endur_cli_path();
             let logfile_path = RuntimeLock::get_endur_cache_home().join("endur.log");
             let mut cmd = std::process::Command::new(endur_path);
             cmd.arg("serve").arg("--logfile").arg(logfile_path);

@@ -15,7 +15,7 @@ fn get_uid() -> Result<String> {
 }
 
 #[cfg(any(target_os = "macos", target_os = "linux", target_os = "windows"))]
-fn get_endur_cli_path() -> std::path::PathBuf {
+pub fn get_endur_cli_path() -> std::path::PathBuf {
     let exe_suffix = if cfg!(target_os = "windows") {
         ".exe"
     } else {
@@ -30,16 +30,29 @@ fn get_endur_cli_path() -> std::path::PathBuf {
                 return exe_path;
             }
         }
-        if let Some(home) = dirs::home_dir() {
-            let cargo_bin = home.join(".cargo").join("bin").join(&bin_name);
-            if cargo_bin.exists() {
-                return cargo_bin;
-            }
-        }
+        // 1. Sibling binary (next to running executable in target/release, target/debug, or Contents/MacOS)
         if let Some(parent) = exe_path.parent() {
             let local_bin = parent.join(&bin_name);
             if local_bin.exists() {
                 return local_bin;
+            }
+            // In macOS .app bundle, check Contents/Resources/endur
+            if let Some(resources) = parent.parent().map(|p| p.join("Resources")) {
+                let direct_resource = resources.join(&bin_name);
+                if direct_resource.exists() {
+                    return direct_resource;
+                }
+                let nested_resource = resources.join("_up_/_up_/_up_/target/release").join(&bin_name);
+                if nested_resource.exists() {
+                    return nested_resource;
+                }
+            }
+        }
+        // 2. Local cargo bin directory (~/.cargo/bin/endur)
+        if let Some(home) = dirs::home_dir() {
+            let cargo_bin = home.join(".cargo").join("bin").join(&bin_name);
+            if cargo_bin.exists() {
+                return cargo_bin;
             }
         }
     }
