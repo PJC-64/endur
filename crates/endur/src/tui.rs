@@ -442,22 +442,40 @@ pub enum ManagementMode {
 }
 
 fn contains_git_repo(path: &std::path::Path) -> bool {
+    has_git_repo_shallow(path, 0, 2)
+}
+
+fn has_git_repo_shallow(path: &std::path::Path, depth: usize, max_depth: usize) -> bool {
     if path.join(".git").is_dir() {
         return true;
     }
-    let walk = walkdir::WalkDir::new(path)
-        .max_depth(5)
-        .into_iter()
-        .filter_map(|e| e.ok());
-    for entry in walk {
-        if entry.file_type().is_dir()
-            && entry
-                .path()
-                .file_name()
-                .map(|n| n == ".git")
-                .unwrap_or(false)
-        {
-            return true;
+    if depth >= max_depth {
+        return false;
+    }
+    let Ok(entries) = std::fs::read_dir(path) else {
+        return false;
+    };
+    for entry in entries.filter_map(|e| e.ok()) {
+        let Ok(file_type) = entry.file_type() else {
+            continue;
+        };
+        if file_type.is_dir() {
+            let file_name = entry.file_name();
+            let name = file_name.to_string_lossy();
+            if name.starts_with('.')
+                || name == "node_modules"
+                || name == "target"
+                || name == "dist"
+                || name == "build"
+                || name == "vendor"
+                || name == "venv"
+                || name == ".venv"
+            {
+                continue;
+            }
+            if has_git_repo_shallow(&entry.path(), depth + 1, max_depth) {
+                return true;
+            }
         }
     }
     false
@@ -825,23 +843,37 @@ pub fn format_log_line(line: &str) -> Option<String> {
 }
 
 fn read_initial_logs(path: &std::path::Path) -> Vec<String> {
-    if let Ok(file) = std::fs::File::open(path) {
-        let reader = std::io::BufReader::new(file);
-        use std::io::BufRead;
-        let mut formatted_lines = Vec::new();
-        for line in reader.lines().map_while(Result::ok) {
-            if let Some(formatted) = format_log_line(&line) {
-                formatted_lines.push(formatted);
-            }
+    use std::io::{BufRead, Seek, SeekFrom};
+    let Ok(mut file) = std::fs::File::open(path) else {
+        return Vec::new();
+    };
+
+    let file_len = file.metadata().map(|m| m.len()).unwrap_or(0);
+    const TAIL_BYTES: u64 = 64 * 1024;
+    let seek_pos = file_len.saturating_sub(TAIL_BYTES);
+
+    if seek_pos > 0 {
+        let _ = file.seek(SeekFrom::Start(seek_pos));
+    }
+
+    let mut reader = std::io::BufReader::new(file);
+    if seek_pos > 0 {
+        // Discard first partial line
+        let mut discard = String::new();
+        let _ = reader.read_line(&mut discard);
+    }
+
+    let mut formatted_lines = Vec::new();
+    for line in reader.lines().map_while(Result::ok) {
+        if let Some(formatted) = format_log_line(&line) {
+            formatted_lines.push(formatted);
         }
-        let len = formatted_lines.len();
-        if len > 100 {
-            formatted_lines[len - 100..].to_vec()
-        } else {
-            formatted_lines
-        }
+    }
+    let len = formatted_lines.len();
+    if len > 100 {
+        formatted_lines[len - 100..].to_vec()
     } else {
-        Vec::new()
+        formatted_lines
     }
 }
 
@@ -849,31 +881,34 @@ fn get_file_diff(repo_path: &std::path::Path, commit_hash: &str, file_path: &str
     if let Ok(repo) = git2::Repository::open(repo_path) {
         if let Ok(oid) = git2::Oid::from_str(commit_hash) {
             if let Ok(commit) = repo.find_commit(oid) {
+                let Ok(commit_tree) = commit.tree() else {
+                    return "Failed to load commit tree.".to_string();
+                };
                 let mut diff_text = Vec::new();
                 if commit.parent_count() > 0 {
                     if let Ok(parent) = commit.parent(0) {
-                        let mut diff_opts = git2::DiffOptions::new();
-                        diff_opts.pathspec(file_path);
-                        if let Ok(diff) = repo.diff_tree_to_tree(
-                            Some(&parent.tree().unwrap()),
-                            Some(&commit.tree().unwrap()),
-                            Some(&mut diff_opts),
-                        ) {
-                            let _ = diff.print(git2::DiffFormat::Patch, |_, _, line| {
-                                diff_text.extend_from_slice(line.content());
-                                true
-                            });
+                        if let Ok(parent_tree) = parent.tree() {
+                            let mut diff_opts = git2::DiffOptions::new();
+                            diff_opts.pathspec(file_path);
+                            if let Ok(diff) = repo.diff_tree_to_tree(
+                                Some(&parent_tree),
+                                Some(&commit_tree),
+                                Some(&mut diff_opts),
+                            ) {
+                                let _ = diff.print(git2::DiffFormat::Patch, |_, _, line| {
+                                    diff_text.extend_from_slice(line.content());
+                                    true
+                                });
+                            }
                         }
                     }
-                } else {
-                    if let Ok(diff) =
-                        repo.diff_tree_to_tree(None, Some(&commit.tree().unwrap()), None)
-                    {
-                        let _ = diff.print(git2::DiffFormat::Patch, |_, _, line| {
-                            diff_text.extend_from_slice(line.content());
-                            true
-                        });
-                    }
+                } else if let Ok(diff) =
+                    repo.diff_tree_to_tree(None, Some(&commit_tree), None)
+                {
+                    let _ = diff.print(git2::DiffFormat::Patch, |_, _, line| {
+                        diff_text.extend_from_slice(line.content());
+                        true
+                    });
                 }
                 if diff_text.is_empty() {
                     return "No changes in this file.".to_string();
@@ -889,6 +924,9 @@ fn get_commit_diff(repo_path: &std::path::Path, commit_hash: &str) -> String {
     if let Ok(repo) = git2::Repository::open(repo_path) {
         if let Ok(oid) = git2::Oid::from_str(commit_hash) {
             if let Ok(commit) = repo.find_commit(oid) {
+                let Ok(commit_tree) = commit.tree() else {
+                    return "Failed to load commit tree.".to_string();
+                };
                 let mut diff_text = Vec::new();
                 diff_text.extend_from_slice(format!("Commit: {}\n", commit.id()).as_bytes());
                 if let Some(author) = commit.author().name() {
@@ -900,26 +938,26 @@ fn get_commit_diff(repo_path: &std::path::Path, commit_hash: &str) -> String {
 
                 if commit.parent_count() > 0 {
                     if let Ok(parent) = commit.parent(0) {
-                        if let Ok(diff) = repo.diff_tree_to_tree(
-                            Some(&parent.tree().unwrap()),
-                            Some(&commit.tree().unwrap()),
-                            None,
-                        ) {
-                            let _ = diff.print(git2::DiffFormat::Patch, |_, _, line| {
-                                diff_text.extend_from_slice(line.content());
-                                true
-                            });
+                        if let Ok(parent_tree) = parent.tree() {
+                            if let Ok(diff) = repo.diff_tree_to_tree(
+                                Some(&parent_tree),
+                                Some(&commit_tree),
+                                None,
+                            ) {
+                                let _ = diff.print(git2::DiffFormat::Patch, |_, _, line| {
+                                    diff_text.extend_from_slice(line.content());
+                                    true
+                                });
+                            }
                         }
                     }
-                } else {
-                    if let Ok(diff) =
-                        repo.diff_tree_to_tree(None, Some(&commit.tree().unwrap()), None)
-                    {
-                        let _ = diff.print(git2::DiffFormat::Patch, |_, _, line| {
-                            diff_text.extend_from_slice(line.content());
-                            true
-                        });
-                    }
+                } else if let Ok(diff) =
+                    repo.diff_tree_to_tree(None, Some(&commit_tree), None)
+                {
+                    let _ = diff.print(git2::DiffFormat::Patch, |_, _, line| {
+                        diff_text.extend_from_slice(line.content());
+                        true
+                    });
                 }
                 return String::from_utf8_lossy(&diff_text).to_string();
             }

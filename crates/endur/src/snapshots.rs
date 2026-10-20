@@ -229,6 +229,8 @@ fn walk_git_snapshots(path: &Path) -> Result<Vec<SnapshotInfo>, Error> {
 /// Results are served from the SQLite cache when available; on a cold start
 /// the cache is transparently populated from a full Git history walk.
 pub fn list_snapshots(path: &Path, show_all: bool) -> Result<Vec<SnapshotInfo>, Error> {
+    let canonical = cache::normalize_repo_path(path);
+    let path = canonical.as_path();
     let repo = Repository::open(path).ok();
 
     // Determine the current HEAD hash for filtering.

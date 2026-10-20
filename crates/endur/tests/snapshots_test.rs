@@ -445,3 +445,40 @@ fn test_prune_snapshots() {
 
     env::remove_var("ENDUR_CACHE_HOME");
 }
+
+#[test]
+#[serial]
+fn test_list_snapshots_relative_path_canonicalization() {
+    let tmp = tempfile::tempdir().unwrap();
+    let cache_dir = tmp.path().join("endur_cache");
+    std::fs::create_dir_all(&cache_dir).unwrap();
+    env::set_var("ENDUR_CACHE_HOME", &cache_dir);
+
+    let repo_dir = tmp.path().join("repo");
+    std::fs::create_dir_all(&repo_dir).unwrap();
+    let mut repo = util::git_repo::GitRepo::new(repo_dir);
+    repo.init();
+    repo.write_file("foo.txt");
+    repo.commit_all();
+
+    repo.change_file("foo.txt");
+    let status = snapshots::capture(repo.dir.as_path()).unwrap().unwrap();
+
+    // Query with absolute path
+    let list_abs = snapshots::list_snapshots(repo.dir.as_path(), true).unwrap();
+    assert_eq!(list_abs.len(), 1);
+    assert_eq!(list_abs[0].commit_hash, status.commit_hash);
+
+    // Verify cache has entry under canonical path
+    let conn = endur::cache::open().unwrap();
+    assert!(endur::cache::has_entries(&conn, repo.dir.as_path()));
+
+    // Relative path with extra "." component
+    let dot_path = repo.dir.join(".").join(".");
+    assert!(endur::cache::has_entries(&conn, &dot_path));
+    let list_rel = snapshots::list_snapshots(&dot_path, true).unwrap();
+    assert_eq!(list_rel.len(), 1);
+    assert_eq!(list_rel[0].commit_hash, status.commit_hash);
+
+    env::remove_var("ENDUR_CACHE_HOME");
+}

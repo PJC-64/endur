@@ -22,6 +22,14 @@ pub fn cache_db_path() -> PathBuf {
     RuntimeLock::get_endur_cache_home().join("snapshot_cache.db")
 }
 
+/// Canonicalizes `repo_path` if it exists on disk, otherwise preserves it as-is.
+///
+/// This ensures consistent cache keys across relative paths (like `.`)
+/// and absolute canonical paths.
+pub fn normalize_repo_path(repo_path: &Path) -> PathBuf {
+    std::fs::canonicalize(repo_path).unwrap_or_else(|_| repo_path.to_path_buf())
+}
+
 // ---------------------------------------------------------------------------
 // Connection + schema
 // ---------------------------------------------------------------------------
@@ -80,7 +88,8 @@ fn init_schema(conn: &Connection) -> SqlResult<()> {
 ///
 /// Returns `None` if the cache is unavailable or the query fails.
 pub fn get_snapshots(conn: &Connection, repo_path: &Path) -> Option<Vec<SnapshotInfo>> {
-    let repo_str = repo_path.to_str()?;
+    let norm = normalize_repo_path(repo_path);
+    let repo_str = norm.to_str()?;
     let mut stmt = conn
         .prepare(
             "SELECT commit_hash, base_hash, timestamp, message, files_changed
@@ -117,7 +126,8 @@ pub fn get_snapshots(conn: &Connection, repo_path: &Path) -> Option<Vec<Snapshot
 ///
 /// Silently ignores errors (the snapshot data is the authoritative source).
 pub fn upsert_snapshots(conn: &Connection, repo_path: &Path, snapshots: &[SnapshotInfo]) {
-    let Some(repo_str) = repo_path.to_str() else {
+    let norm = normalize_repo_path(repo_path);
+    let Some(repo_str) = norm.to_str() else {
         return;
     };
 
@@ -144,7 +154,8 @@ pub fn upsert_snapshots(conn: &Connection, repo_path: &Path, snapshots: &[Snapsh
 /// Remove all cached snapshot rows for `repo_path` (e.g. when a repo is
 /// unwatched).  Silently ignores errors.
 pub fn evict_repo(conn: &Connection, repo_path: &Path) {
-    if let Some(repo_str) = repo_path.to_str() {
+    let norm = normalize_repo_path(repo_path);
+    if let Some(repo_str) = norm.to_str() {
         let _ = conn.execute(
             "DELETE FROM snapshots WHERE repo_path = ?1",
             params![repo_str],
@@ -155,7 +166,8 @@ pub fn evict_repo(conn: &Connection, repo_path: &Path) {
 /// Remove all cached snapshot rows for a specific `base_hash` in `repo_path`.
 /// Silently ignores errors.
 pub fn delete_snapshots_for_base(conn: &Connection, repo_path: &Path, base_hash: &str) {
-    if let Some(repo_str) = repo_path.to_str() {
+    let norm = normalize_repo_path(repo_path);
+    if let Some(repo_str) = norm.to_str() {
         let _ = conn.execute(
             "DELETE FROM snapshots WHERE repo_path = ?1 AND base_hash = ?2",
             params![repo_str, base_hash],
@@ -171,7 +183,8 @@ pub fn delete_snapshots_for_base(conn: &Connection, repo_path: &Path, base_hash:
 ///
 /// Used to decide whether to trust the cache or do a full Git walk.
 pub fn has_entries(conn: &Connection, repo_path: &Path) -> bool {
-    let Some(repo_str) = repo_path.to_str() else {
+    let norm = normalize_repo_path(repo_path);
+    let Some(repo_str) = norm.to_str() else {
         return false;
     };
     conn.query_row(
