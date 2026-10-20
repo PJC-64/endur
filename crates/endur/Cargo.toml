@@ -14,7 +14,6 @@ documentation = "https://github.com/PJC-64/endur/blob/main/README.md"
 anyhow = "1.0"
 clap = { version = "4.0", features = ["cargo", "string"] }
 git2 = "0.20"
-hdrhistogram = "7.5.2"
 dirs = "6.0.0"
 tokio = { version = "1", features = ["full"] }
 serde = { version = "1.0", features = ["derive", "rc"] }
@@ -23,19 +22,18 @@ chrono = "0.4"
 toml = "0.5.8"
 tracing = { version = "0.1.5"}
 tracing-subscriber = { version = "0.3", features = ["env-filter", "registry"] }
-walkdir = "2.5.0"
-sudo = "0.6.0"
 notify = "6.1.1"
 ignore = "0.4.26"
 fs2 = "0.4.3"
 ratatui = "0.30.0"
 rusqlite = { version = "0.31.0", features = ["bundled"] }
 
-
-
 [dev-dependencies]
 tempfile = "3.27.0"
 serial_test = "3.5.0"
+
+[target.'cfg(unix)'.dependencies]
+rustix = { version = "1.1", features = ["process"] }
 
 [target.'cfg(windows)'.dependencies]
 uds_windows = "1.2.1"

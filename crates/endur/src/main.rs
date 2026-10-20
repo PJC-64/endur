@@ -713,7 +713,7 @@ async fn unwatch_dir(path: &std::path::Path) {
 
 #[cfg(unix)]
 fn check_if_user() -> bool {
-    sudo::check() != sudo::RunningAs::Root
+    !rustix::process::geteuid().is_root()
 }
 
 #[cfg(target_os = "windows")]
