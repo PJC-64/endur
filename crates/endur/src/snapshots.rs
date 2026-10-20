@@ -105,8 +105,8 @@ pub fn capture(path: &Path) -> Result<Option<CaptureStatus>, Error> {
         message: message.to_string(),
         files_changed,
     };
-    if let Some(conn) = cache::open() {
-        cache::upsert_snapshots(&conn, path, &[new_snap]);
+    if let Some(mut conn) = cache::open() {
+        cache::upsert_snapshots(&mut conn, path, &[new_snap]);
     }
 
     Ok(Some(status))
@@ -242,7 +242,7 @@ pub fn list_snapshots(path: &Path, show_all: bool) -> Result<Vec<SnapshotInfo>, 
     });
 
     // Try the SQLite cache first.
-    let cached = if let Some(conn) = cache::open() {
+    let cached = if let Some(mut conn) = cache::open() {
         if cache::has_entries(&conn, path) {
             // Cache hit – check if the newest entry is still valid in Git.
             let snaps = cache::get_snapshots(&conn, path);
@@ -267,13 +267,13 @@ pub fn list_snapshots(path: &Path, show_all: bool) -> Result<Vec<SnapshotInfo>, 
                 // Cache is stale – evict this repo and trigger a cold walk to refresh.
                 cache::evict_repo(&conn, path);
                 let snaps = walk_git_snapshots(path)?;
-                cache::upsert_snapshots(&conn, path, &snaps);
+                cache::upsert_snapshots(&mut conn, path, &snaps);
                 Some(snaps)
             }
         } else {
             // Cache cold – full Git walk then populate.
             let snaps = walk_git_snapshots(path)?;
-            cache::upsert_snapshots(&conn, path, &snaps);
+            cache::upsert_snapshots(&mut conn, path, &snaps);
             Some(snaps)
         }
     } else {

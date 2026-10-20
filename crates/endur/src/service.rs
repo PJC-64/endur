@@ -11,18 +11,7 @@ use std::process::Command;
 
 #[cfg(target_os = "macos")]
 fn get_uid() -> Result<String> {
-    let output = Command::new("id")
-        .arg("-u")
-        .output()
-        .context("Failed to run 'id -u' command")?;
-    if !output.status.success() {
-        return Err(anyhow!(
-            "'id -u' command failed with status: {:?}",
-            output.status
-        ));
-    }
-    let uid = String::from_utf8(output.stdout)?.trim().to_string();
-    Ok(uid)
+    Ok(rustix::process::getuid().as_raw().to_string())
 }
 
 #[cfg(any(target_os = "macos", target_os = "linux", target_os = "windows"))]

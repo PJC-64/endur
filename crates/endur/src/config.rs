@@ -462,3 +462,45 @@ impl Config {
         }
     }
 }
+
+/// Checks whether `path` is or directly contains a Git repository, up to max depth 2,
+/// skipping noisy build and dependency directories.
+pub fn contains_git_repo(path: &Path) -> bool {
+    has_git_repo_shallow(path, 0, 2)
+}
+
+fn has_git_repo_shallow(path: &Path, depth: usize, max_depth: usize) -> bool {
+    if path.join(".git").is_dir() {
+        return true;
+    }
+    if depth >= max_depth {
+        return false;
+    }
+    let Ok(entries) = std::fs::read_dir(path) else {
+        return false;
+    };
+    for entry in entries.filter_map(|e| e.ok()) {
+        let Ok(file_type) = entry.file_type() else {
+            continue;
+        };
+        if file_type.is_dir() {
+            let file_name = entry.file_name();
+            let name = file_name.to_string_lossy();
+            if name.starts_with('.')
+                || name == "node_modules"
+                || name == "target"
+                || name == "dist"
+                || name == "build"
+                || name == "vendor"
+                || name == "venv"
+                || name == ".venv"
+            {
+                continue;
+            }
+            if has_git_repo_shallow(&entry.path(), depth + 1, max_depth) {
+                return true;
+            }
+        }
+    }
+    false
+}

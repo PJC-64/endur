@@ -167,8 +167,8 @@ pub fn prune(path: &Path, options: &PruneOptions) -> Result<PruneReport, Error> 
 }
 
 fn parse_duration(s: &str) -> Result<std::time::Duration, String> {
-    let unit = s.chars().last().ok_or("Empty duration")?;
-    let val_str = &s[..s.len() - 1];
+    let (last_idx, unit) = s.char_indices().last().ok_or("Empty duration")?;
+    let val_str = &s[..last_idx];
     let val: u64 = val_str
         .parse()
         .map_err(|_| format!("Invalid duration value: {}", val_str))?;

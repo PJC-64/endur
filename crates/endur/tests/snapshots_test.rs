@@ -482,3 +482,25 @@ fn test_list_snapshots_relative_path_canonicalization() {
 
     env::remove_var("ENDUR_CACHE_HOME");
 }
+
+#[test]
+fn test_prune_duration_utf8_safety() {
+    let tmp = tempfile::tempdir().unwrap();
+    let repo_dir = tmp.path().join("repo");
+    std::fs::create_dir_all(&repo_dir).unwrap();
+    let repo = util::git_repo::GitRepo::new(repo_dir);
+    repo.init();
+    repo.write_file("foo.txt");
+    repo.commit_all();
+
+    // Multi-byte UTF-8 unit should fail gracefully, NOT panic with a slice boundary crash
+    let options = endur::prune::PruneOptions {
+        target_commit: None,
+        keep_last_n: None,
+        before_duration: Some("30日".to_string()),
+        dry_run: false,
+        run_gc: false,
+    };
+    let err = endur::prune::prune(repo.dir.as_path(), &options).unwrap_err();
+    assert!(err.to_string().contains("Unknown duration unit"));
+}

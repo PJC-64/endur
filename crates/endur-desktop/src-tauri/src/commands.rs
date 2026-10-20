@@ -1,4 +1,4 @@
-use endur::config::{Config, WatchConfig};
+use endur::config::{contains_git_repo, Config, WatchConfig};
 use endur::database::RuntimeLock;
 use endur::poller;
 use endur::service;
@@ -332,28 +332,6 @@ pub fn get_base_root_dir() -> Result<String, String> {
             .unwrap_or_else(|| PathBuf::from("/"))
     };
     Ok(base_root.to_string_lossy().to_string())
-}
-
-fn contains_git_repo(path: &Path) -> bool {
-    if path.join(".git").is_dir() {
-        return true;
-    }
-    let walk = walkdir::WalkDir::new(path)
-        .max_depth(5)
-        .into_iter()
-        .filter_map(|e| e.ok());
-    for entry in walk {
-        if entry.file_type().is_dir()
-            && entry
-                .path()
-                .file_name()
-                .map(|n| n == ".git")
-                .unwrap_or(false)
-        {
-            return true;
-        }
-    }
-    false
 }
 
 #[tauri::command]

@@ -124,17 +124,19 @@ pub fn get_snapshots(conn: &Connection, repo_path: &Path) -> Option<Vec<Snapshot
 
 /// Insert or replace a batch of snapshots for `repo_path` into the cache.
 ///
-/// Silently ignores errors (the snapshot data is the authoritative source).
-pub fn upsert_snapshots(conn: &Connection, repo_path: &Path, snapshots: &[SnapshotInfo]) {
+/// Uses an atomic transaction and silently ignores errors (the snapshot data is the authoritative source).
+pub fn upsert_snapshots(conn: &mut Connection, repo_path: &Path, snapshots: &[SnapshotInfo]) {
     let norm = normalize_repo_path(repo_path);
     let Some(repo_str) = norm.to_str() else {
         return;
     };
 
-    // Use a transaction for bulk performance.
-    let _ = conn.execute("BEGIN", []);
+    let Ok(tx) = conn.transaction() else {
+        return;
+    };
+
     for snap in snapshots {
-        let _ = conn.execute(
+        if tx.execute(
             "INSERT OR REPLACE INTO snapshots
              (repo_path, commit_hash, base_hash, timestamp, message, files_changed)
              VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
@@ -146,9 +148,11 @@ pub fn upsert_snapshots(conn: &Connection, repo_path: &Path, snapshots: &[Snapsh
                 snap.message,
                 snap.files_changed as i64,
             ],
-        );
+        ).is_err() {
+            return;
+        }
     }
-    let _ = conn.execute("COMMIT", []);
+    let _ = tx.commit();
 }
 
 /// Remove all cached snapshot rows for `repo_path` (e.g. when a repo is
