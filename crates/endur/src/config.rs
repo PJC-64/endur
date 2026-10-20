@@ -470,7 +470,7 @@ pub fn contains_git_repo(path: &Path) -> bool {
 }
 
 fn has_git_repo_shallow(path: &Path, depth: usize, max_depth: usize) -> bool {
-    if path.join(".git").is_dir() {
+    if path.join(".git").exists() {
         return true;
     }
     if depth >= max_depth {
