@@ -1,7 +1,7 @@
 use git2::{BranchType, DiffOptions, Error, IndexAddOption, Repository, Signature};
 use serde::{Deserialize, Serialize};
 use std::fmt;
-use std::path::Path;
+use std::path::{Path, PathBuf};
 
 use crate::cache;
 use crate::config::Config;
@@ -305,6 +305,34 @@ pub fn restore(
     let oid = git2::Oid::from_str(commit_hash)?;
     let commit = repo.find_commit(oid)?;
 
+    // Normalize requested file paths to be relative to the repository working directory
+    let repo_root = repo.workdir().unwrap_or(path);
+    let canonical_root = repo_root
+        .canonicalize()
+        .unwrap_or_else(|_| repo_root.to_path_buf());
+    let normalized_files: Option<Vec<PathBuf>> = files.map(|paths| {
+        paths
+            .iter()
+            .map(|p| {
+                let p_path = Path::new(p);
+                if p_path.is_absolute() {
+                    let canonical_p = p_path
+                        .canonicalize()
+                        .unwrap_or_else(|_| p_path.to_path_buf());
+                    if let Ok(rel) = canonical_p.strip_prefix(&canonical_root) {
+                        rel.to_path_buf()
+                    } else if let Ok(rel) = p_path.strip_prefix(repo_root) {
+                        rel.to_path_buf()
+                    } else {
+                        p_path.to_path_buf()
+                    }
+                } else {
+                    p_path.to_path_buf()
+                }
+            })
+            .collect()
+    });
+
     // Compute changes that will be restored relative to current HEAD
     let mut changes = Vec::new();
     if let Ok(head_ref) = repo.head() {
@@ -329,11 +357,10 @@ pub fn restore(
                         .unwrap_or("")
                         .to_string();
 
-                    let should_include = if let Some(paths) = files {
-                        paths.iter().any(|p| {
-                            let path_p = Path::new(p);
+                    let should_include = if let Some(ref paths) = normalized_files {
+                        paths.iter().any(|path_p| {
                             let delta_path = Path::new(&path_str);
-                            delta_path.starts_with(path_p)
+                            delta_path == path_p || delta_path.starts_with(path_p)
                         })
                     } else {
                         true
@@ -349,9 +376,9 @@ pub fn restore(
 
     let mut checkout_opts = git2::build::CheckoutBuilder::new();
     checkout_opts.force();
-    if let Some(paths) = files {
+    if let Some(ref paths) = normalized_files {
         for p in paths {
-            checkout_opts.path(Path::new(p));
+            checkout_opts.path(p);
         }
     }
 

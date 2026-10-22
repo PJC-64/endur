@@ -172,8 +172,9 @@ local function show_picker(opts)
           prompt = "Restore current file '" .. current_file .. "' to snapshot " .. hash:sub(1, 8) .. "? (y/N): "
         }, function(input)
           if input and input:lower():match("^y") then
+            local rel_file_path = require("endur").to_rel_path(git_root, current_file_path)
             vim.notify("Restoring " .. current_file .. " to snapshot " .. hash:sub(1, 8) .. "...")
-            local out = vim.fn.system({ endur_path, "restore", hash, git_root, "-f", current_file_path })
+            local out = vim.fn.system({ endur_path, "restore", hash, git_root, "-f", rel_file_path })
             if vim.v.shell_error ~= 0 then
               vim.notify("endur: restore failed: " .. out, vim.log.levels.ERROR)
             else

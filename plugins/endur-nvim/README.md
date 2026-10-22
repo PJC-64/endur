@@ -23,10 +23,11 @@ Using [lazy.nvim](https://github.com/folke/lazy.nvim):
 
 ## Usage
 - `:EndurWatch` — Manually registers the current file's repository path with Endur.
-- `:EndurSnapshots` — Opens the Telescope snapshot picker to view or restore snapshots.
+- `:EndurUnwatch` — Manually stops watching the current file's repository path with Endur.
+- `:EndurSnapshots` — Opens the snapshot picker (auto-detects Snacks, Fzf-Lua, or Telescope) to view or restore snapshots.
 - `:EndurSnapshotsSnacks` — Opens the Snacks.nvim snapshot picker with side-by-side diff previews and `<C-f>` single-file restore action.
 - `:EndurSnapshotsFzf` — Opens the `fzf-lua` snapshot picker.
-- `:EndurTUI` — Launches the interactive `endur tui` Control Center inside an embedded floating terminal.
+- `:EndurTUI` / `:EndurTui` — Launches the interactive `endur tui` Control Center inside an embedded floating terminal.
 - `:EndurStatus` — Prints the status of the current repository in the command line area.
 
 ## Statusline Integration

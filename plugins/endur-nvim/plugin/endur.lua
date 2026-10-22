@@ -12,8 +12,24 @@ end, {
   complete = "file",
 })
 
+vim.api.nvim_create_user_command("EndurUnwatch", function(opts)
+  local path = opts.args ~= "" and vim.fn.fnamemodify(opts.args, ":p") or nil
+  require("endur").unwatch(path)
+end, {
+  nargs = "?",
+  complete = "file",
+})
+
 vim.api.nvim_create_user_command("EndurSnapshots", function()
   require("endur").snapshots()
+end, {})
+
+vim.api.nvim_create_user_command("EndurSnapshotsSnacks", function()
+  require("endur").snapshots_snacks()
+end, {})
+
+vim.api.nvim_create_user_command("EndurSnapshotsFzf", function()
+  require("endur").snapshots_fzf()
 end, {})
 
 vim.api.nvim_create_user_command("EndurStatus", function()
@@ -21,6 +37,10 @@ vim.api.nvim_create_user_command("EndurStatus", function()
 end, {})
 
 vim.api.nvim_create_user_command("EndurTui", function()
+  require("endur").tui()
+end, {})
+
+vim.api.nvim_create_user_command("EndurTUI", function()
   require("endur").tui()
 end, {})
 
