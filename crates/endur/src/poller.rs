@@ -296,13 +296,14 @@ pub async fn run_ipc_server(
                     let shutdown_tx_task = shutdown_tx_clone.clone();
                     let reload_tx_task = reload_tx_clone.clone();
                     let rt_task = rt.clone();
+                    let rt_inner = rt.clone();
 
                     rt_task.spawn_blocking(move || {
                         let _ = stream.set_nonblocking(false);
                         let mut buf = Vec::new();
                         if stream.read_to_end(&mut buf).is_ok() && !buf.is_empty() {
                             let req_str = String::from_utf8_lossy(&buf);
-                            let res = rt_task.block_on(async {
+                            let res = rt_inner.block_on(async {
                                 handle_ipc_command(&req_str, &shutdown_tx_task, &reload_tx_task)
                                     .await
                             });
