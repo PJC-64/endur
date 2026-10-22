@@ -840,92 +840,13 @@ fn read_initial_logs(path: &std::path::Path) -> Vec<String> {
 }
 
 fn get_file_diff(repo_path: &std::path::Path, commit_hash: &str, file_path: &str) -> String {
-    if let Ok(repo) = git2::Repository::open(repo_path) {
-        if let Ok(oid) = git2::Oid::from_str(commit_hash) {
-            if let Ok(commit) = repo.find_commit(oid) {
-                let Ok(commit_tree) = commit.tree() else {
-                    return "Failed to load commit tree.".to_string();
-                };
-                let mut diff_text = Vec::new();
-                if commit.parent_count() > 0 {
-                    if let Ok(parent) = commit.parent(0) {
-                        if let Ok(parent_tree) = parent.tree() {
-                            let mut diff_opts = git2::DiffOptions::new();
-                            diff_opts.pathspec(file_path);
-                            if let Ok(diff) = repo.diff_tree_to_tree(
-                                Some(&parent_tree),
-                                Some(&commit_tree),
-                                Some(&mut diff_opts),
-                            ) {
-                                let _ = diff.print(git2::DiffFormat::Patch, |_, _, line| {
-                                    diff_text.extend_from_slice(line.content());
-                                    true
-                                });
-                            }
-                        }
-                    }
-                } else if let Ok(diff) =
-                    repo.diff_tree_to_tree(None, Some(&commit_tree), None)
-                {
-                    let _ = diff.print(git2::DiffFormat::Patch, |_, _, line| {
-                        diff_text.extend_from_slice(line.content());
-                        true
-                    });
-                }
-                if diff_text.is_empty() {
-                    return "No changes in this file.".to_string();
-                }
-                return String::from_utf8_lossy(&diff_text).to_string();
-            }
-        }
-    }
-    "Failed to load diff.".to_string()
+    snapshots::get_file_diff(repo_path, commit_hash, file_path)
+        .unwrap_or_else(|_| "Failed to load diff.".to_string())
 }
 
 fn get_commit_diff(repo_path: &std::path::Path, commit_hash: &str) -> String {
-    if let Ok(repo) = git2::Repository::open(repo_path) {
-        if let Ok(oid) = git2::Oid::from_str(commit_hash) {
-            if let Ok(commit) = repo.find_commit(oid) {
-                let Ok(commit_tree) = commit.tree() else {
-                    return "Failed to load commit tree.".to_string();
-                };
-                let mut diff_text = Vec::new();
-                diff_text.extend_from_slice(format!("Commit: {}\n", commit.id()).as_bytes());
-                if let Some(author) = commit.author().name() {
-                    diff_text.extend_from_slice(format!("Author: {}\n", author).as_bytes());
-                }
-                if let Some(summary) = commit.summary() {
-                    diff_text.extend_from_slice(format!("Message: {}\n\n", summary).as_bytes());
-                }
-
-                if commit.parent_count() > 0 {
-                    if let Ok(parent) = commit.parent(0) {
-                        if let Ok(parent_tree) = parent.tree() {
-                            if let Ok(diff) = repo.diff_tree_to_tree(
-                                Some(&parent_tree),
-                                Some(&commit_tree),
-                                None,
-                            ) {
-                                let _ = diff.print(git2::DiffFormat::Patch, |_, _, line| {
-                                    diff_text.extend_from_slice(line.content());
-                                    true
-                                });
-                            }
-                        }
-                    }
-                } else if let Ok(diff) =
-                    repo.diff_tree_to_tree(None, Some(&commit_tree), None)
-                {
-                    let _ = diff.print(git2::DiffFormat::Patch, |_, _, line| {
-                        diff_text.extend_from_slice(line.content());
-                        true
-                    });
-                }
-                return String::from_utf8_lossy(&diff_text).to_string();
-            }
-        }
-    }
-    "Failed to load commit diff.".to_string()
+    snapshots::get_commit_diff(repo_path, commit_hash)
+        .unwrap_or_else(|_| "Failed to load commit diff.".to_string())
 }
 
 pub async fn run_control_center() -> Result<(), Box<dyn std::error::Error>> {
@@ -1351,6 +1272,9 @@ pub async fn run_control_center() -> Result<(), Box<dyn std::error::Error>> {
                                                         state.show_message(format!("Failed to unwatch: {}", e));
                                                     } else {
                                                         config.save();
+                                                        if let Some(conn) = crate::cache::open() {
+                                                            crate::cache::evict_repo(&conn, std::path::Path::new(&path_str));
+                                                        }
                                                         let _ = crate::poller::send_uds_command("reload").await;
                                                         state.show_message(format!("Stopped watching {}", path_str));
                                                         let mut new_repos: Vec<PathBuf> = crate::config::Config::load().git_repos().collect();
@@ -1374,8 +1298,12 @@ pub async fn run_control_center() -> Result<(), Box<dyn std::error::Error>> {
                                             if to_remove.is_empty() {
                                                 state.show_message("No invalid repositories found.".to_string());
                                             } else {
+                                                let conn = crate::cache::open();
                                                 for repo in &to_remove {
                                                     config.repos.remove(repo);
+                                                    if let Some(ref db) = conn {
+                                                        crate::cache::evict_repo(db, std::path::Path::new(repo));
+                                                    }
                                                 }
                                                 config.save();
                                                 let _ = crate::poller::send_uds_command("reload").await;

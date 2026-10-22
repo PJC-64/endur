@@ -147,6 +147,9 @@ pub async fn toggle_watch_repo(path: String, watch: bool) -> Result<(), String> 
             config
                 .set_unwatch(path.clone())
                 .map_err(|e| e.to_string())?;
+            if let Some(conn) = endur::cache::open() {
+                endur::cache::evict_repo(&conn, Path::new(&path));
+            }
         }
         config.save();
     }
@@ -165,12 +168,8 @@ pub fn get_snapshots(
 
 #[tauri::command]
 pub fn get_snapshot_diff(repo_path: String, hash: String) -> Result<String, String> {
-    let output = std::process::Command::new("git")
-        .args(["show", "--stat", "-p", &hash])
-        .current_dir(&repo_path)
-        .output()
-        .map_err(|e| format!("Failed to execute git show: {e}"))?;
-    Ok(String::from_utf8_lossy(&output.stdout).into_owned())
+    let path = Path::new(&repo_path);
+    snapshots::get_commit_diff(path, &hash).map_err(|e| e.to_string())
 }
 
 #[tauri::command]

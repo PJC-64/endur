@@ -391,3 +391,81 @@ pub fn get_snapshot_files(path: &Path, commit_hash: &str) -> Result<Vec<(char, S
     }
     Ok(files)
 }
+
+pub fn get_commit_diff(path: &Path, commit_hash: &str) -> Result<String, Error> {
+    let repo = Repository::open(path)?;
+    let oid = git2::Oid::from_str(commit_hash)?;
+    let commit = repo.find_commit(oid)?;
+    let commit_tree = commit.tree()?;
+    let mut diff_text = Vec::new();
+    diff_text.extend_from_slice(format!("Commit: {}\n", commit.id()).as_bytes());
+    if let Some(author) = commit.author().name() {
+        diff_text.extend_from_slice(format!("Author: {}\n", author).as_bytes());
+    }
+    if let Some(summary) = commit.summary() {
+        diff_text.extend_from_slice(format!("Message: {}\n\n", summary).as_bytes());
+    }
+
+    if commit.parent_count() > 0 {
+        if let Ok(parent) = commit.parent(0) {
+            if let Ok(parent_tree) = parent.tree() {
+                if let Ok(diff) = repo.diff_tree_to_tree(
+                    Some(&parent_tree),
+                    Some(&commit_tree),
+                    None,
+                ) {
+                    let _ = diff.print(git2::DiffFormat::Patch, |_, _, line| {
+                        diff_text.extend_from_slice(line.content());
+                        true
+                    });
+                }
+            }
+        }
+    } else if let Ok(diff) = repo.diff_tree_to_tree(None, Some(&commit_tree), None) {
+        let _ = diff.print(git2::DiffFormat::Patch, |_, _, line| {
+            diff_text.extend_from_slice(line.content());
+            true
+        });
+    }
+
+    if diff_text.is_empty() {
+        return Ok("No changes in this commit.".to_string());
+    }
+    Ok(String::from_utf8_lossy(&diff_text).to_string())
+}
+
+pub fn get_file_diff(path: &Path, commit_hash: &str, file_path: &str) -> Result<String, Error> {
+    let repo = Repository::open(path)?;
+    let oid = git2::Oid::from_str(commit_hash)?;
+    let commit = repo.find_commit(oid)?;
+    let commit_tree = commit.tree()?;
+    let mut diff_text = Vec::new();
+    if commit.parent_count() > 0 {
+        if let Ok(parent) = commit.parent(0) {
+            if let Ok(parent_tree) = parent.tree() {
+                let mut diff_opts = git2::DiffOptions::new();
+                diff_opts.pathspec(file_path);
+                if let Ok(diff) = repo.diff_tree_to_tree(
+                    Some(&parent_tree),
+                    Some(&commit_tree),
+                    Some(&mut diff_opts),
+                ) {
+                    let _ = diff.print(git2::DiffFormat::Patch, |_, _, line| {
+                        diff_text.extend_from_slice(line.content());
+                        true
+                    });
+                }
+            }
+        }
+    } else if let Ok(diff) = repo.diff_tree_to_tree(None, Some(&commit_tree), None) {
+        let _ = diff.print(git2::DiffFormat::Patch, |_, _, line| {
+            diff_text.extend_from_slice(line.content());
+            true
+        });
+    }
+
+    if diff_text.is_empty() {
+        return Ok("No changes in this file.".to_string());
+    }
+    Ok(String::from_utf8_lossy(&diff_text).to_string())
+}

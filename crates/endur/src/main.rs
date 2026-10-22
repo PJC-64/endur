@@ -646,9 +646,13 @@ async fn main() {
                     "Found {} inaccessible repository/repositories:",
                     to_remove.len()
                 );
+                let conn = endur::cache::open();
                 for repo in &to_remove {
                     println!("  Removing: {repo}");
                     config.repos.remove(repo);
+                    if let Some(ref db) = conn {
+                        endur::cache::evict_repo(db, Path::new(repo));
+                    }
                 }
                 config.save();
                 println!("Cleaned up configuration successfully.");
@@ -715,6 +719,10 @@ async fn unwatch_dir(path: &std::path::Path) {
         process::exit(1);
     }
     config.save();
+
+    if let Some(conn) = endur::cache::open() {
+        endur::cache::evict_repo(&conn, path);
+    }
 
     // Notify daemon
     let _ = endur::poller::send_uds_command("reload").await;
