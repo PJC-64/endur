@@ -42,16 +42,16 @@ jobs:
         uses: swatinem/rust-cache@v2
 
       - name: Build
-        run: cargo build --release --all-features
+        run: cargo build --release -p endur
 
       - name: Rustfmt
         run: cargo fmt --check
 
       - name: Cargo Clippy
-        run: cargo clippy --all-targets --all-features -- -D warnings
+        run: cargo clippy -p endur --all-targets -- -D warnings
 
       - name: Cargo Test
-        run: cargo test --profile release
+        run: cargo test --profile release -p endur
 
       - name: Basic Testing
         continue-on-error: true

@@ -202,7 +202,9 @@ impl Config {
             .unwrap_or(0);
         let temp_name = format!(
             "{}.{}.{}.tmp",
-            path.file_name().and_then(|n| n.to_str()).unwrap_or("config"),
+            path.file_name()
+                .and_then(|n| n.to_str())
+                .unwrap_or("config"),
             std::process::id(),
             nanos
         );

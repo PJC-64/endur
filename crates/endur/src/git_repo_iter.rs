@@ -53,7 +53,11 @@ impl<'a> GitRepoIter<'a> {
                 if let Some(Ok(entry)) = dir_iter.next() {
                     let child_path = entry.path();
                     if child_path.file_name().and_then(|n| n.to_str()) != Some(".git")
-                        && is_valid_directory(base_path.as_path(), child_path.as_path(), &watch_config)
+                        && is_valid_directory(
+                            base_path.as_path(),
+                            child_path.as_path(),
+                            &watch_config,
+                        )
                     {
                         if snapshots::is_repo(child_path.as_path()) {
                             ret_val = CallState::Yield(child_path);
@@ -87,8 +91,11 @@ impl<'a> GitRepoIter<'a> {
                                 CallState::Yield(path)
                             } else if path.is_dir() {
                                 if let Ok(dir_iter) = fs::read_dir(&path) {
-                                    self.sub_iter
-                                        .push((Rc::new(path), Rc::clone(watch_config), dir_iter));
+                                    self.sub_iter.push((
+                                        Rc::new(path),
+                                        Rc::clone(watch_config),
+                                        dir_iter,
+                                    ));
                                 }
                                 CallState::Recurse
                             } else {

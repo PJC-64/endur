@@ -136,19 +136,22 @@ pub fn upsert_snapshots(conn: &mut Connection, repo_path: &Path, snapshots: &[Sn
     };
 
     for snap in snapshots {
-        if tx.execute(
-            "INSERT OR REPLACE INTO snapshots
+        if tx
+            .execute(
+                "INSERT OR REPLACE INTO snapshots
              (repo_path, commit_hash, base_hash, timestamp, message, files_changed)
              VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
-            params![
-                repo_str,
-                snap.commit_hash,
-                snap.base_hash,
-                snap.timestamp,
-                snap.message,
-                snap.files_changed as i64,
-            ],
-        ).is_err() {
+                params![
+                    repo_str,
+                    snap.commit_hash,
+                    snap.base_hash,
+                    snap.timestamp,
+                    snap.message,
+                    snap.files_changed as i64,
+                ],
+            )
+            .is_err()
+        {
             return;
         }
     }

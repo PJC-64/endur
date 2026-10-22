@@ -4,6 +4,9 @@ members = [
     "crates/endur",
     "crates/endur-desktop/src-tauri"
 ]
+default-members = [
+    "crates/endur"
+]
 
 [patch.crates-io]
 glib = { path = "patches/glib-0.18.5" }

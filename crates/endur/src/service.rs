@@ -42,7 +42,9 @@ pub fn get_endur_cli_path() -> std::path::PathBuf {
                 if direct_resource.exists() {
                     return direct_resource;
                 }
-                let nested_resource = resources.join("_up_/_up_/_up_/target/release").join(&bin_name);
+                let nested_resource = resources
+                    .join("_up_/_up_/_up_/target/release")
+                    .join(&bin_name);
                 if nested_resource.exists() {
                     return nested_resource;
                 }

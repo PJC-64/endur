@@ -409,11 +409,9 @@ pub fn get_commit_diff(path: &Path, commit_hash: &str) -> Result<String, Error> 
     if commit.parent_count() > 0 {
         if let Ok(parent) = commit.parent(0) {
             if let Ok(parent_tree) = parent.tree() {
-                if let Ok(diff) = repo.diff_tree_to_tree(
-                    Some(&parent_tree),
-                    Some(&commit_tree),
-                    None,
-                ) {
+                if let Ok(diff) =
+                    repo.diff_tree_to_tree(Some(&parent_tree), Some(&commit_tree), None)
+                {
                     let _ = diff.print(git2::DiffFormat::Patch, |_, _, line| {
                         diff_text.extend_from_slice(line.content());
                         true
