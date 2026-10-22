@@ -47,36 +47,38 @@ pub async fn get_daemon_status() -> Result<DaemonStatus, String> {
     })
 }
 
+fn spawn_daemon_process() -> Result<(), String> {
+    let endur_path = service::get_endur_cli_path();
+    let logfile_path = RuntimeLock::get_endur_cache_home().join("endur.log");
+    let mut cmd = std::process::Command::new(endur_path);
+    cmd.arg("serve").arg("--logfile").arg(logfile_path);
+    #[cfg(unix)]
+    {
+        use std::os::unix::process::CommandExt;
+        unsafe {
+            cmd.pre_exec(|| {
+                extern "C" {
+                    fn setsid() -> i32;
+                }
+                setsid();
+                Ok(())
+            });
+        }
+    }
+    #[cfg(windows)]
+    {
+        use std::os::windows::process::CommandExt;
+        cmd.creation_flags(0x00000008 | 0x00000200);
+    }
+    cmd.spawn()
+        .map_err(|e| format!("Failed to spawn daemon: {e}"))?;
+    Ok(())
+}
+
 #[tauri::command]
 pub async fn control_daemon(action: String) -> Result<(), String> {
     match action.as_str() {
-        "start" => {
-            let endur_path = service::get_endur_cli_path();
-            let logfile_path = RuntimeLock::get_endur_cache_home().join("endur.log");
-            let mut cmd = std::process::Command::new(endur_path);
-            cmd.arg("serve").arg("--logfile").arg(logfile_path);
-            #[cfg(unix)]
-            {
-                use std::os::unix::process::CommandExt;
-                unsafe {
-                    cmd.pre_exec(|| {
-                        extern "C" {
-                            fn setsid() -> i32;
-                        }
-                        setsid();
-                        Ok(())
-                    });
-                }
-            }
-            #[cfg(windows)]
-            {
-                use std::os::windows::process::CommandExt;
-                cmd.creation_flags(0x00000008 | 0x00000200);
-            }
-            cmd.spawn()
-                .map_err(|e| format!("Failed to spawn daemon: {e}"))?;
-            Ok(())
-        }
+        "start" => spawn_daemon_process(),
         "stop" => {
             let _ = poller::send_uds_command("kill").await;
             if RuntimeLock::is_active() {
@@ -120,36 +122,7 @@ pub async fn control_daemon(action: String) -> Result<(), String> {
             }
 
             // 2. Start it again
-            let home_dir =
-                dirs::home_dir().ok_or_else(|| "Could not determine home directory".to_string())?;
-            let mut endur_path = home_dir.join(".cargo/bin/endur");
-            if !endur_path.exists() {
-                endur_path = PathBuf::from("endur");
-            }
-            let logfile_path = RuntimeLock::get_endur_cache_home().join("endur.log");
-            let mut cmd = std::process::Command::new(endur_path);
-            cmd.arg("serve").arg("--logfile").arg(logfile_path);
-            #[cfg(unix)]
-            {
-                use std::os::unix::process::CommandExt;
-                unsafe {
-                    cmd.pre_exec(|| {
-                        extern "C" {
-                            fn setsid() -> i32;
-                        }
-                        setsid();
-                        Ok(())
-                    });
-                }
-            }
-            #[cfg(windows)]
-            {
-                use std::os::windows::process::CommandExt;
-                cmd.creation_flags(0x00000008 | 0x00000200);
-            }
-            cmd.spawn()
-                .map_err(|e| format!("Failed to spawn daemon: {e}"))?;
-            Ok(())
+            spawn_daemon_process()
         }
         _ => Err("Invalid action".to_string()),
     }
@@ -226,22 +199,37 @@ pub fn get_metrics_summary(human_readable: bool) -> Result<String, String> {
 
 #[tauri::command]
 pub fn get_log_tail(lines: usize) -> Result<String, String> {
+    use std::io::{BufRead, Seek, SeekFrom};
     let log_path = RuntimeLock::get_endur_cache_home().join("endur.log");
     if !log_path.exists() {
         return Ok("No logs recorded yet.".to_string());
     }
-    let content = std::fs::read_to_string(log_path).map_err(|e| e.to_string())?;
+    let mut file = std::fs::File::open(log_path).map_err(|e| e.to_string())?;
+    let file_len = file.metadata().map(|m| m.len()).unwrap_or(0);
+    const TAIL_BYTES: u64 = 64 * 1024;
+    let seek_pos = file_len.saturating_sub(TAIL_BYTES);
+    if seek_pos > 0 {
+        let _ = file.seek(SeekFrom::Start(seek_pos));
+    }
+    let mut reader = std::io::BufReader::new(file);
+    if seek_pos > 0 {
+        let mut discard = String::new();
+        let _ = reader.read_line(&mut discard);
+    }
 
     let mut formatted_lines = Vec::new();
-    for line in content.lines().rev() {
-        if let Some(formatted) = endur::tui::format_log_line(line) {
+    for line in reader.lines().map_while(Result::ok) {
+        if let Some(formatted) = endur::tui::format_log_line(&line) {
             formatted_lines.push(formatted);
-            if formatted_lines.len() >= lines {
-                break;
-            }
         }
     }
-    Ok(formatted_lines.join("\n"))
+    let len = formatted_lines.len();
+    let result_lines = if len > lines {
+        &formatted_lines[len - lines..]
+    } else {
+        &formatted_lines[..]
+    };
+    Ok(result_lines.join("\n"))
 }
 
 #[tauri::command]

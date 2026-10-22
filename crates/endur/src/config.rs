@@ -196,7 +196,17 @@ impl Config {
             }
         };
 
-        let temp_path = path.with_extension("tmp");
+        let nanos = SystemTime::now()
+            .duration_since(SystemTime::UNIX_EPOCH)
+            .map(|d| d.as_nanos())
+            .unwrap_or(0);
+        let temp_name = format!(
+            "{}.{}.{}.tmp",
+            path.file_name().and_then(|n| n.to_str()).unwrap_or("config"),
+            std::process::id(),
+            nanos
+        );
+        let temp_path = path.with_file_name(temp_name);
         if let Err(e) = fs::write(&temp_path, &config_string) {
             eprintln!("Unable to write temp config file: {e}");
             return;

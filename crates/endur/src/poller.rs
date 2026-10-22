@@ -228,14 +228,11 @@ pub async fn run_ipc_server(
                         let shutdown_tx_clone = shutdown_tx.clone();
                         let reload_tx_clone = reload_tx.clone();
                         tokio::spawn(async move {
-                            let mut buf = [0; 1024];
-                            match stream.read(&mut buf).await {
-                                Ok(size) if size > 0 => {
-                                    let req_str = String::from_utf8_lossy(&buf[..size]);
-                                    let res = handle_ipc_command(&req_str, &shutdown_tx_clone, &reload_tx_clone).await;
-                                    let _ = stream.write_all(res.as_bytes()).await;
-                                }
-                                _ => {}
+                            let mut buf = Vec::new();
+                            if stream.read_to_end(&mut buf).await.is_ok() && !buf.is_empty() {
+                                let req_str = String::from_utf8_lossy(&buf);
+                                let res = handle_ipc_command(&req_str, &shutdown_tx_clone, &reload_tx_clone).await;
+                                let _ = stream.write_all(res.as_bytes()).await;
                             }
                         });
                     }
@@ -295,16 +292,14 @@ pub async fn run_ipc_server(
 
                     std::thread::spawn(move || {
                         let _ = stream.set_nonblocking(false);
-                        let mut buf = [0; 1024];
-                        if let Ok(size) = stream.read(&mut buf) {
-                            if size > 0 {
-                                let req_str = String::from_utf8_lossy(&buf[..size]);
-                                let res = rt_task.block_on(async {
-                                    handle_ipc_command(&req_str, &shutdown_tx_task, &reload_tx_task)
-                                        .await
-                                });
-                                let _ = stream.write_all(res.as_bytes());
-                            }
+                        let mut buf = Vec::new();
+                        if stream.read_to_end(&mut buf).is_ok() && !buf.is_empty() {
+                            let req_str = String::from_utf8_lossy(&buf);
+                            let res = rt_task.block_on(async {
+                                handle_ipc_command(&req_str, &shutdown_tx_task, &reload_tx_task)
+                                    .await
+                            });
+                            let _ = stream.write_all(res.as_bytes());
                         }
                     });
                 }
