@@ -218,7 +218,7 @@ impl Config {
         }
     }
 
-    pub fn set_watch(&mut self, path: String, cfg: WatchConfig) -> Result<()> {
+    pub fn set_watch(&mut self, path: String, cfg: WatchConfig) -> Result<String> {
         let abs_path = fs::canonicalize(&path)
             .map_err(|e| format!("The provided path '{path}' is not a directory: {e}"))?;
         let abs_path_str = abs_path
@@ -229,12 +229,11 @@ impl Config {
             Err(format!("{abs_path_str} is already being watched").into())
         } else {
             self.repos.insert(abs_path_str.to_string(), Rc::new(cfg));
-            println!("Started watching {abs_path_str}");
-            Ok(())
+            Ok(abs_path_str.to_string())
         }
     }
 
-    pub fn set_unwatch(&mut self, path: String) -> Result<()> {
+    pub fn set_unwatch(&mut self, path: String) -> Result<String> {
         let abs_path = fs::canonicalize(&path)
             .map_err(|e| format!("The provided path '{path}' is not a directory: {e}"))?;
         let abs_path_str = abs_path
@@ -242,10 +241,7 @@ impl Config {
             .ok_or("The provided path is not valid unicode")?;
 
         match self.repos.remove(abs_path_str) {
-            Some(_) => {
-                println!("Stopped watching {abs_path_str}");
-                Ok(())
-            }
+            Some(_) => Ok(abs_path_str.to_string()),
             None => Err(format!("{abs_path_str} is not being watched").into()),
         }
     }

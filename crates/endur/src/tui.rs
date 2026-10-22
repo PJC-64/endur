@@ -1280,7 +1280,12 @@ pub async fn run_control_center() -> Result<(), Box<dyn std::error::Error>> {
                                                         let mut new_repos: Vec<PathBuf> = crate::config::Config::load().git_repos().collect();
                                                         new_repos.sort();
                                                         state.repos_state.repos = new_repos;
-                                                        state.repos_state.repo_state.select(Some(0));
+                                                        if state.repos_state.repos.is_empty() {
+                                                            state.repos_state.repo_state.select(None);
+                                                        } else {
+                                                            let next_idx = idx.min(state.repos_state.repos.len() - 1);
+                                                            state.repos_state.repo_state.select(Some(next_idx));
+                                                        }
                                                         state.repos_state.reload_snapshots();
                                                     }
                                                 }
@@ -1311,7 +1316,11 @@ pub async fn run_control_center() -> Result<(), Box<dyn std::error::Error>> {
                                                 let mut new_repos: Vec<PathBuf> = crate::config::Config::load().git_repos().collect();
                                                 new_repos.sort();
                                                 state.repos_state.repos = new_repos;
-                                                state.repos_state.repo_state.select(Some(0));
+                                                if state.repos_state.repos.is_empty() {
+                                                    state.repos_state.repo_state.select(None);
+                                                } else {
+                                                    state.repos_state.repo_state.select(Some(0));
+                                                }
                                                 state.repos_state.reload_snapshots();
                                             }
                                         }
@@ -2217,7 +2226,11 @@ fn draw_control_center(f: &mut ratatui::Frame, state: &ControlCenterState) {
     f.render_widget(live_logs_widget, footer_chunks[0]);
 
     // Action status message
-    let message_text = state.message.as_deref().unwrap_or("");
+    let message_text = state
+        .message
+        .as_ref()
+        .map(|m| format!(" ℹ {m}"))
+        .unwrap_or_default();
     let message_widget = Paragraph::new(message_text).style(
         Style::default()
             .fg(Color::Yellow)

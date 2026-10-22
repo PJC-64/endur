@@ -693,11 +693,15 @@ async fn watch_dir(path: &std::path::Path, watch_config: WatchConfig) {
         }
     };
 
-    if let Err(e) = config.set_watch(path_str, watch_config) {
-        eprintln!("{e}");
-        process::exit(1);
-    }
+    let watched_path = match config.set_watch(path_str, watch_config) {
+        Ok(p) => p,
+        Err(e) => {
+            eprintln!("{e}");
+            process::exit(1);
+        }
+    };
     config.save();
+    println!("Started watching {watched_path}");
 
     // Notify daemon
     let _ = endur::poller::send_uds_command("reload").await;
@@ -714,11 +718,15 @@ async fn unwatch_dir(path: &std::path::Path) {
         }
     };
 
-    if let Err(e) = config.set_unwatch(path_str) {
-        eprintln!("{e}");
-        process::exit(1);
-    }
+    let unwatched_path = match config.set_unwatch(path_str) {
+        Ok(p) => p,
+        Err(e) => {
+            eprintln!("{e}");
+            process::exit(1);
+        }
+    };
     config.save();
+    println!("Stopped watching {unwatched_path}");
 
     if let Some(conn) = endur::cache::open() {
         endur::cache::evict_repo(&conn, path);
