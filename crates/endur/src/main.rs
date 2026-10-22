@@ -291,9 +291,18 @@ async fn main() {
             }
 
             let file_str = logfile_path.to_string_lossy().to_string();
+            const MAX_LOG_SIZE: u64 = 20 * 1024 * 1024; // 20 MB
             Registry::default()
                 .with(env_filter)
                 .with(NestedJsonLayer::new(move || {
+                    let log_p = std::path::Path::new(&file_str);
+                    if let Ok(meta) = std::fs::metadata(log_p) {
+                        if meta.len() > MAX_LOG_SIZE {
+                            let rotated = log_p.with_extension("log.old");
+                            let _ = std::fs::remove_file(&rotated);
+                            let _ = std::fs::rename(log_p, &rotated);
+                        }
+                    }
                     let result_open_file =
                         OpenOptions::new().append(true).create(true).open(&file_str);
                     match result_open_file {

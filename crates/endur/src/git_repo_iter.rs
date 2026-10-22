@@ -52,7 +52,8 @@ impl<'a> GitRepoIter<'a> {
                 let max_depth: usize = watch_config.max_depth.into();
                 if let Some(Ok(entry)) = dir_iter.next() {
                     let child_path = entry.path();
-                    if is_valid_directory(base_path.as_path(), child_path.as_path(), &watch_config)
+                    if child_path.file_name().and_then(|n| n.to_str()) != Some(".git")
+                        && is_valid_directory(base_path.as_path(), child_path.as_path(), &watch_config)
                     {
                         if snapshots::is_repo(child_path.as_path()) {
                             ret_val = CallState::Yield(child_path);
@@ -62,7 +63,7 @@ impl<'a> GitRepoIter<'a> {
                                     Rc::clone(&base_path),
                                     Rc::clone(&watch_config),
                                     child_dir_iter,
-                                ))
+                                ));
                             }
                         }
                     }
@@ -77,17 +78,25 @@ impl<'a> GitRepoIter<'a> {
                 ret_val
             }
             None => {
-                // Finished dir, queue up next hashmap pair
+                // Finished dir, queue up next configured watch path
                 match self.config_iter.next() {
                     Some((base_path, watch_config)) => {
                         let path = PathBuf::from(base_path);
-                        let dir_iter_opt = path.parent().and_then(|p| fs::read_dir(p).ok());
-                        if let Some(dir_iter) = dir_iter_opt {
-                            // clone because we're going from more global to less global scope
-                            self.sub_iter
-                                .push((Rc::new(path), Rc::clone(watch_config), dir_iter));
+                        if is_valid_directory(path.as_path(), path.as_path(), watch_config) {
+                            if snapshots::is_repo(path.as_path()) {
+                                CallState::Yield(path)
+                            } else if path.is_dir() {
+                                if let Ok(dir_iter) = fs::read_dir(&path) {
+                                    self.sub_iter
+                                        .push((Rc::new(path), Rc::clone(watch_config), dir_iter));
+                                }
+                                CallState::Recurse
+                            } else {
+                                CallState::Recurse
+                            }
+                        } else {
+                            CallState::Recurse
                         }
-                        CallState::Recurse
                     }
                     // The end. The real end. This is it.
                     None => CallState::Done,

@@ -132,11 +132,11 @@ impl RuntimeLock {
     pub fn kill_process(pid: u32) -> bool {
         #[cfg(unix)]
         {
-            std::process::Command::new("kill")
-                .arg(pid.to_string())
-                .status()
-                .map(|s| s.success())
-                .unwrap_or(false)
+            if let Some(p) = rustix::process::Pid::from_raw(pid as i32) {
+                rustix::process::kill_process(p, rustix::process::Signal::TERM).is_ok()
+            } else {
+                false
+            }
         }
         #[cfg(windows)]
         {

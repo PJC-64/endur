@@ -103,6 +103,8 @@ pub async fn start() {
     tokio::pin!(signal_fut);
 
     loop {
+        let earliest_due = pending_captures.values().copied().min();
+
         tokio::select! {
             _ = &mut signal_fut => {
                 info!("Shutdown signal received. Starting graceful shutdown...");
@@ -132,7 +134,12 @@ pub async fn start() {
                 info!("Shutting down poller task...");
                 break;
             }
-            _ = tokio::time::sleep(tokio::time::Duration::from_millis(100)) => {
+            _ = async {
+                match earliest_due {
+                    Some(due) => tokio::time::sleep_until(due.into()).await,
+                    None => std::future::pending::<()>().await,
+                }
+            } => {
                 let now = Instant::now();
                 let mut due_repos = Vec::new();
                 for (repo, due_time) in &pending_captures {
@@ -290,7 +297,7 @@ pub async fn run_ipc_server(
                     let reload_tx_task = reload_tx_clone.clone();
                     let rt_task = rt.clone();
 
-                    std::thread::spawn(move || {
+                    rt_task.spawn_blocking(move || {
                         let _ = stream.set_nonblocking(false);
                         let mut buf = Vec::new();
                         if stream.read_to_end(&mut buf).is_ok() && !buf.is_empty() {
