@@ -31,17 +31,17 @@ graph TD
 
 ## Core Components
 
-### 1. Command-Line Interface ([src/main.rs](file:///Users/pjc/Development/endur/src/main.rs))
+### 1. Command-Line Interface ([crates/endur/src/main.rs](file:///Users/pjc/Development/endur/crates/endur/src/main.rs))
 *   **Subcommand Routing**: Parses arguments using `clap` and routes them.
 *   **Daemon Notification**: Subcommands like `watch` and `unwatch` perform the local configuration changes and notify the running daemon using the `poller::send_uds_command` helper.
 *   **Direct Command execution**: Core recovery tasks like `list-snapshots` and `restore` execute directly in the client context by parsing the Git repository, avoiding UDS overhead.
 
-### 2. Runtime Locking & Single Instance enforcement ([src/database.rs](file:///Users/pjc/Development/endur/src/database.rs))
+### 2. Runtime Locking & Single Instance enforcement ([crates/endur/src/database.rs](file:///Users/pjc/Development/endur/crates/endur/src/database.rs))
 *   **`RuntimeLock` struct**: Enforces that only one daemon instance is active.
 *   **Exclusive Advisory Locking**: Utilizes `fs2::FileExt::try_lock_exclusive` to acquire an OS-level lock on the file `~/.cache/endur/runtime.lock` (and database at `runtime.db`).
 *   **Auto-Cleanup**: The lock is automatically released by the operating system when the daemon process terminates.
 
-### 3. Client-Server IPC ([src/poller.rs](file:///Users/pjc/Development/endur/src/poller.rs))
+### 3. Client-Server IPC ([crates/endur/src/poller.rs](file:///Users/pjc/Development/endur/crates/endur/src/poller.rs))
 *   **Unix Domain Sockets**: The daemon binds to local sockets using `tokio::net::UnixListener` on both Unix and Windows 10/11 (where UDS is natively supported):
     *   *macOS/Linux*: `~/.cache/endur/endur.sock`
     *   *Windows*: `%AppData%\Local\endur\endur.sock`
@@ -50,14 +50,14 @@ graph TD
     *   `kill`: Triggers a graceful shutdown of the daemon.
     *   `status`: Responds with daemon metrics.
 
-### 4. File Watcher & Filter Engine ([src/watcher.rs](file:///Users/pjc/Development/endur/src/watcher.rs))
+### 4. File Watcher & Filter Engine ([crates/endur/src/watcher.rs](file:///Users/pjc/Development/endur/crates/endur/src/watcher.rs))
 *   **`WatcherManager` struct**: Manages recursive file system monitoring using the `notify` crate.
 *   **Path Canonicalization**: Filesystem events on macOS and Linux often report relative paths or symlink roots (like `/var` vs `/private/var`). The watcher canonicalizes all event paths prior to comparison.
 *   **Git-Aware Filtering**:
     *   Excludes `.git/` folder and its contents automatically.
     *   Loads `.gitignore` files using `ignore::gitignore::Gitignore` to match change events against gitignore rules and discard ignored files.
 
-### 5. Daemon Control Loop ([src/poller.rs](file:///Users/pjc/Development/endur/src/poller.rs))
+### 5. Daemon Control Loop ([crates/endur/src/poller.rs](file:///Users/pjc/Development/endur/crates/endur/src/poller.rs))
 *   **Event Await & Debounce**: The daemon loop listens to four event sources using `tokio::select!`:
     *   *OS Signal Handler Channel*: Listens to target-specific shutdown signals pinned to the stack (`wait_for_signal()`). On Unix, handles `SIGINT`, `SIGTERM`, and `SIGHUP`. On Windows, handles `Ctrl+C` and `Ctrl+Break` events.
     *   *IPC Command Channel*: Process socket operations.
@@ -66,12 +66,15 @@ graph TD
 *   **Graceful Exit Actions**: When a shutdown signal is received, the loop sends a broadcast termination signal to UDS socket handlers, clears the `RuntimeLock` PID metadata value back to `None`, and exits cleanly.
 *   **Optimization**: Debouncing prevents multiple rapid writes (e.g., compilation artifacts or quick editor saves) from creating dozens of intermediate commits.
 
-### 6. Isolated Snapshot Capture & SQLite Caching ([src/snapshots.rs](file:///Users/pjc/Development/endur/crates/endur/src/snapshots.rs), [src/cache.rs](file:///Users/pjc/Development/endur/crates/endur/src/cache.rs))
+### 6. Isolated Snapshot Capture & SQLite Caching ([crates/endur/src/snapshots.rs](file:///Users/pjc/Development/endur/crates/endur/src/snapshots.rs), [crates/endur/src/cache.rs](file:///Users/pjc/Development/endur/crates/endur/src/cache.rs))
 *   **`snapshots::capture`**: Stages changes and commits them.
 *   **Git Index Isolation**: Rather than using the user's primary Git index (`.git/index`), it creates and maintains a dedicated staging index file at `.git/endur_index` via `git2::Index::open`.
 *   **Branch Architecture**:
     *   Backups are committed to local branches named `endur/<base-commit-hash>`.
     *   The parent of the first endur snapshot is the user's HEAD commit. Subsequent backups chain off the previous endur backup commit, keeping histories completely linear.
+*   **Discrete Restore & Path Normalization**:
+    *   `snapshots::restore(path, commit_hash, files)`: Supports full repository or discrete file checkout.
+    *   When discrete files are requested, Endur normalizes each path against the canonical repository root. Both relative paths (e.g. `src/lib.rs`) and absolute paths (e.g. `/path/to/repo/src/lib.rs` passed from editor extensions) are automatically stripped to repo-relative coordinates, ensuring accurate git delta matching and checkout path specifications.
 *   **SQLite Metadata Cache**:
     *   To keep reads fast, snapshot metadata is cached in a local SQLite database at `$ENDUR_CACHE_HOME/snapshot_cache.db` (usually `~/.cache/endur/snapshot_cache.db`).
     *   Schema: `snapshots (repo_path TEXT, commit_hash TEXT PRIMARY KEY, base_hash TEXT, timestamp INTEGER, message TEXT, files_changed TEXT)`.
@@ -82,11 +85,11 @@ graph TD
     *   `snapshots::list_snapshots(path, show_all)` queries the cache first (falling back to a Git walk if cold or failed).
     *   When `show_all` is `false` (default), snapshots are filtered to only those whose `base_hash` matches the current `HEAD` commit hash. This hides snapshots that are older than the latest formal commit.
     *   When `show_all` is `true`, all snapshots recorded for the repository are returned.
-*   **Decoupled DTO Architecture (`src/snapshot_info.rs`)**:
+*   **Decoupled DTO Architecture ([crates/endur/src/snapshot_info.rs](file:///Users/pjc/Development/endur/crates/endur/src/snapshot_info.rs))**:
     *   The `SnapshotInfo` struct is defined in a standalone module (`snapshot_info.rs`) rather than inside `snapshots.rs`.
     *   This eliminates bidirectional module dependencies between `cache.rs` and `snapshots.rs`, ensuring a completely acyclic architecture.
 
-### 6b. Snapshot Pruning Logic ([src/prune.rs](file:///Users/pjc/Development/endur/crates/endur/src/prune.rs))
+### 6b. Snapshot Pruning Logic ([crates/endur/src/prune.rs](file:///Users/pjc/Development/endur/crates/endur/src/prune.rs))
 *   **`prune::prune`**: Filters and deletes historical snapshot branches.
     *   *By Ancestry*: Resolves the target commit OID, walks back the history to identify its ancestors, and marks any branch `endur/P` where `P` is an ancestor of `T` (and `P != T`) for deletion.
     *   *By Count*: Walks back from `HEAD` history to keep the last `N` formal commits, marking older branches for deletion.
@@ -94,7 +97,7 @@ graph TD
     *   **SQLite Cache Eviction**: Synchronously deletes database cache entries matching pruned base hashes via `cache::delete_snapshots_for_base` to ensure metadata queries instantly reflect the pruning.
     *   **Git GC**: Optionally spawns a `git gc --prune=now` subcommand to purge deleted commits and reclaim disk space immediately.
 
-### 7. Interactive TUI Restore & Control Center ([src/tui.rs](file:///Users/pjc/Development/endur/src/tui.rs))
+### 7. Interactive TUI Restore & Control Center ([crates/endur/src/tui.rs](file:///Users/pjc/Development/endur/crates/endur/src/tui.rs))
 *   **Decoupled `TuiState`**: Separates core snapshot-browsing state management (watched repositories, snapshots, modified file listings, checkmarked files, and pane focusing) from the rendering engine. This keeps state management clean and modular, allowing the backup-browsing logic to be reused and integrated within the unified multi-tab Control Center.
 *   **Asynchronous Control Center TUI (`endur tui`)**:
     *   **Tokio Event Loop**: Uses an async main loop running on Tokio to merge multiple non-blocking event sources: Crossterm keyboard events, periodic daemon PID/uptime status checks, and log file tail changes.
@@ -106,7 +109,7 @@ graph TD
     *   *Unix*: Redirects file descriptors `1` and `2` to `/dev/null` using `dup`/`dup2`.
     *   *Windows*: Redirects standard console handles `STD_OUTPUT_HANDLE` and `STD_ERROR_HANDLE` to `NUL` using `GetStdHandle`/`SetStdHandle`, restoring original handles upon `Drop`.
 
-### 8. Background Service Management ([src/service.rs](file:///Users/pjc/Development/endur/src/service.rs))
+### 8. Background Service Management ([crates/endur/src/service.rs](file:///Users/pjc/Development/endur/crates/endur/src/service.rs))
 *   **macOS (`launchctl` Integration)**: Creates `~/Library/LaunchAgents/com.endur.daemon.plist` configured to run `endur serve` in the background, and registers it using the modern `launchctl bootstrap` framework (falling back to `launchctl load` if necessary). Patched to ensure that stopping the service does not trigger an immediate restart.
 *   **Linux (`systemd` Integration)**: Configures a systemd user unit at `~/.config/systemd/user/endur.service` and executes systemd commands to daemon-reload, enable, and start/stop the service.
 *   **Windows (`schtasks` Integration)**: Registers a Scheduled Task `EndurDaemon` configured to launch on logon (`/sc onlogon`) under the current user's profile context. Subprocesses are executed with `CREATE_NO_WINDOW` (`0x08000000`) and standard output is captured via `.output()`, preventing any visible console window popups or TUI buffer pollution.
@@ -127,23 +130,38 @@ The Desktop GUI is structured as a **Cargo Workspace** member separate from the 
     *   Runs on tag pushes matching `desktop-v*` or manual workflow runs.
     *   Builds Node dependencies, compiles the Rust backend, and uses `tauri-apps/tauri-action` to compile and bundle native installers: macOS DMG, Windows MSI/EXE, and Linux DEB/AppImage.
 
+### 10. Neovim Integration Plugin ([plugins/endur-nvim](file:///Users/pjc/Development/endur/plugins/endur-nvim))
+
+The Neovim plugin provides deep editor integration while communicating purely over the standard `endur` CLI interfaces:
+
+*   **Plugin Structure**:
+    *   `lua/endur/init.lua`: Core module defining configuration, background daemon check/spawning (`check_and_start_daemon`), autocommands (`BufWritePost` auto-watching), statusline rendering (`M.statusline()`, `M.statusline_raw()`), and picker implementations.
+    *   `plugin/endur.lua`: Registers user commands (`:EndurWatch`, `:EndurUnwatch`, `:EndurSnapshots`, `:EndurSnapshotsSnacks`, `:EndurSnapshotsFzf`, `:EndurStatus`, `:EndurTUI`).
+    *   `lua/telescope/_extensions/endur.lua`: Telescope extension registration and previewer setup.
+*   **Asynchronous Execution**:
+    *   All CLI commands (`watch`, `unwatch`, `info`, `list-snapshots`) are executed asynchronously via `vim.fn.jobstart` to ensure the editor UI never blocks or stutters during backup operations.
+*   **Path Normalization (`to_rel_path`)**:
+    *   Neovim buffer names are absolute paths (`vim.api.nvim_buf_get_name(0)`). The plugin normalizes buffer paths relative to the Git repository root using `M.to_rel_path(git_root, full_path)` before passing them to `endur restore <hash> <root> -f <rel_path>`.
+*   **Monorepo Subtree Synchronization**:
+    *   The plugin lives inside `plugins/endur-nvim` in the main Endur monorepo.
+    *   On every push to `main`, the GitHub Actions workflow `.github/workflows/sync-plugins.yaml` runs `git-subtree-action` to extract changes in `plugins/endur-nvim` and automatically push them to the standalone repository [`PJC-64/endur-nvim`](https://github.com/PJC-64/endur-nvim), making updates immediately available to `lazy.nvim`, `packer.nvim`, or other Neovim package managers.
+
 ---
 
 ## Development & Testing Workflow
 
 ### Compiling
 ```bash
-cargo build
+cargo build --workspace
 ```
 
 ### Running Tests
-The test suite consists of several test suites covering locking, IPC, watcher, and snapshotting:
+The test suite consists of unit and integration test suites covering locking, IPC, watcher, snapshotting, and CLI commands:
 ```bash
 cargo test
 ```
 
 ### Key Integration Tests
-*   [tests/startup_test.rs](file:///Users/pjc/Development/endur/tests/startup_test.rs): Tests UDS communication (now verified on both Unix and Windows), OS signal graceful shutdown, invalid lock files, and double-lock prevention.
-*   [tests/watch_test.rs](file:///Users/pjc/Development/endur/tests/watch_test.rs): Tests watcher registration and event-driven backup snapshots.
-*   [tests/snapshots_test.rs](file:///Users/pjc/Development/endur/tests/snapshots_test.rs): Tests Git index isolation, git ignore support, listing snapshots, and restoring snapshots.
-*   [tests/poll_guard_test.rs](file:///Users/pjc/Development/endur/tests/poll_guard_test.rs): Tests poller lock mechanics and state changes.
+*   [crates/endur/tests/startup_test.rs](file:///Users/pjc/Development/endur/crates/endur/tests/startup_test.rs): Tests UDS communication (verified on both Unix and Windows), OS signal graceful shutdown, invalid lock files, and double-lock prevention.
+*   [crates/endur/tests/watch_test.rs](file:///Users/pjc/Development/endur/crates/endur/tests/watch_test.rs): Tests watcher registration, event-driven backup snapshots, `.gitignore` dynamic reload, and cleanup of inaccessible repositories.
+*   [crates/endur/tests/snapshots_test.rs](file:///Users/pjc/Development/endur/crates/endur/tests/snapshots_test.rs): Tests Git index isolation, git ignore support, listing snapshots, relative and absolute path discrete restores, commit signatures, and pruning.

@@ -30,9 +30,9 @@ cargo install endur
 ```
 
 ### Build CLI/TUI from Source
-From the `endur` directory:
+From the `endur` repository directory:
 ```bash
-cargo install --path .
+cargo install --path crates/endur
 ```
 This compiles the release binary and installs it to your local Cargo bin directory (usually `~/.cargo/bin`). Make sure this directory is in your `$PATH`.
 
@@ -235,7 +235,7 @@ If you want to restore only specific files or folders from a snapshot rather tha
 ```bash
 endur restore <commit-hash> --files path/to/file1.txt path/to/dir/
 ```
-Only the specified files/directories will be reverted to the snapshot's state; other modifications in your working directory will remain untouched.
+You can pass relative paths (e.g., `src/main.rs`) or full absolute paths (e.g., `/Users/pjc/Development/project/src/main.rs`). Endur automatically normalizes paths against the Git repository root, making it effortless to invoke from editor extensions or shell scripts. Only the specified files/directories will be reverted to the snapshot's state; other modifications in your working directory will remain untouched.
 
 #### Interactive Mode (TUI)
 For a visual selection interface, run:
@@ -316,7 +316,7 @@ Usage: endur [COMMAND]
 
 Commands:
   capture, -C, --capture  Run a single backup of an entire repository. This is the one single iteration of the `serve` control loop.
-  info, -I, --info        Prints summary information about the current configuration and repository status.
+  info, -I, --info        Prints summary information about the current configuration and repository status. [aliases: status]
   serve, -S, --serve      Starts the worker that listens for file changes. If another process is already running, this will do it's best to terminate the other process.
   watch, -W, --watch      Add the current working directory as a repository to watch.
   unwatch, -U, --unwatch  Remove the current working directory as a repository to watch.
@@ -324,6 +324,7 @@ Commands:
   metrics, -M, --metrics  Convert logs into richer metrics about snapshots.
   list-snapshots          List all local endur backup snapshots.
   restore                 Restore files from a specific endur backup snapshot.
+  prune                   Prune historical backup snapshots.
   cleanup                 Remove any inaccessible or invalid repositories from the watch list.
   service                 Manage endur background service
   tui                     Interactive control center for daemon monitoring and snapshot management.
@@ -445,7 +446,7 @@ Manage endur background service
 Usage: endur service [COMMAND]
 
 Commands:
-  install    Install endur as a system startup service (launchd on macOS, systemd on Linux, Task Scheduler on Windows)
+  install    Install endur as a system startup service (launchd on macOS, systemd on Linux, Windows registry). If already installed, the existing service is stopped and removed before installing the latest version.
   uninstall  Uninstall endur startup service
   help       Print this message or the help of the given subcommand(s)
 
@@ -507,8 +508,10 @@ A companion Neovim plugin is available in [`plugins/endur-nvim`](file:///Users/p
 * **Automatic Watching**: Automatically registers repositories with `endur watch` whenever buffers are written.
 * **Contextual Statusline**: Formats statusline components with the active repository name and uncommitted state (e.g., `Endur[my-project] Clean (3)` or `Endur[my-project] Modified (1)`).
 * **Multi-Picker Snapshot Recovery**:
-  * `:EndurSnapshots` — Interactive snapshot selector with side-by-side patch diff preview via Telescope.
+  * `:EndurSnapshots` — Automatic snapshot picker (auto-detects `snacks.nvim`, `fzf-lua`, or Telescope) with patch diff preview.
   * `:EndurSnapshotsSnacks` — Fast snapshot navigation via `snacks.nvim` picker with diff preview and `<C-f>` single-file restore action.
-  * `:EndurSnapshotsFzf` — `fzf-lua` snapshot picker.
-  * `:EndurTUI` — Launches the interactive `endur tui` Control Center in a floating terminal window inside Neovim.
+  * `:EndurSnapshotsFzf` — Fast snapshot navigation via `fzf-lua` snapshot picker with `<C-f>` single-file restore action.
+  * `:EndurTUI` / `:EndurTui` — Launches the interactive `endur tui` Control Center in a floating terminal window inside Neovim.
+  * `:EndurWatch` / `:EndurUnwatch` — Manually watch or stop watching repositories directly from Neovim.
   * `:EndurStatus` — Prints the monitored status of the current file's repository.
+* **Discrete Restore Path Normalization**: When triggering `<C-f>` discrete restore, paths are automatically converted to repository-relative paths before calling `endur restore -f`, ensuring discrete single-file restoration works seamlessly regardless of buffer directory nesting.

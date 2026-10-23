@@ -31,4 +31,4 @@ To package the app into a native platform installer (macOS DMG, Windows MSI, or 
 ```bash
 npm run tauri build
 ```
-Production outputs will be generated under `src-tauri/target/release/bundle/`.
+Production outputs will be generated under `target/release/bundle/` (relative to the repository root).

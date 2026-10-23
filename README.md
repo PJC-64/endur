@@ -21,7 +21,7 @@ Compared to the upstream `dura` repository, **Endur** adds the following feature
 2. **Unix Domain Sockets (UDS) IPC**: Replaced the native TCP loopback setup with a robust, asynchronous Unix Domain Socket communication layer.
 3. **Event-Driven & Debounced File Watching**: Replaced CPU-heavy active directory polling with native, event-driven file monitoring (`notify` crate) combined with a 500ms debounce cache.
 4. **Git-Aware Filtering**: Automatically respects `.gitignore` rules and ignores the `.git/` folder, reducing disk write and commit activity.
-5. **Discrete Path Restore**: Allows you to restore only specific files or folders from a backup snapshot (e.g. `endur restore <hash> --files path/to/file`) instead of checking out the entire repository tree.
+5. **Discrete Path Restore**: Allows you to restore only specific files or folders from a backup snapshot (e.g. `endur restore <hash> --files path/to/file`) instead of checking out the entire repository tree. Supports both relative and absolute paths for seamless editor and IDE integration.
 6. **Built-in CLI Recovery & Interactive TUIs**:
    * `endur list-snapshots`: Lists snapshots since the last formal commit by default; pass `--all` to see the full history.
    * `endur prune`: Delete historical backup snapshots based on a target commit, age duration, or retention count to reclaim disk space.
@@ -32,6 +32,7 @@ Compared to the upstream `dura` repository, **Endur** adds the following feature
 9. **Metrics Scraping & Performance Analysis**: Exposes an `endur metrics` subcommand that parses log files to compute backup frequency, snapshot latency, and repository sizes. Supports both raw JSON output and a clean formatted table (`-h/--human-readable`), enriched with Unicode sparkline trend graphs plotting latency and activity history. Checks `stdin` to prevent interactive hangs, automatically falling back to cached log paths when run on a TTY.
 10. **SQLite Metadata Cache**: Snapshot metadata is transparently cached in a SQLite database (`~/.cache/endur/snapshot_cache.db`). This dramatically speeds up `list-snapshots`, the TUI, and the GUI on large repositories. The cache is kept warm automatically on every backup and gracefully falls back to a raw Git history walk if the database file is missing or corrupt.
 11. **Native Desktop GUI Application (v1.1.0)**: Structured the project as a Cargo workspace to support a native cross-platform GUI client (`crates/endur-desktop`) built on Tauri 2.0 and Svelte 5. It packages native desktop installers (macOS DMG, Windows MSI/EXE, Linux DEB/AppImage) and implements a hybrid daemon resolver to integrate seamlessly with the existing CLI/TUI core.
+12. **Neovim Editor Integration (`endur-nvim`)**: Official companion Neovim plugin providing automatic repository watching on write, statusline widgets (`EndurClean` / `EndurModified`), and multi-picker snapshot navigation (`snacks.nvim`, `fzf-lua`, and `telescope.nvim`) with inline diff previews and discrete `<C-f>` single-file restore.
 
 ## Documentation
 
@@ -39,6 +40,7 @@ Compared to the upstream `dura` repository, **Endur** adds the following feature
 *   [Developer Guide](docs/developer_guide.md): Details on the internal architecture, event-driven loop, UDS socket IPC, and testing.
 *   [GUI User Guide](docs/gui_user_guide.md): Comprehensive guide to installing, configuring, and using the native Desktop GUI application.
 *   [GUI Developer Guide](docs/gui_developer_guide.md): Technical details on the Svelte 5 + Tauri desktop client architecture and IPC commands.
+*   [Neovim Plugin](plugins/endur-nvim/README.md): Setup and usage documentation for the companion `endur-nvim` plugin.
 
 ## How to use
 
@@ -82,7 +84,22 @@ $ git log --all
 `endur` produces a branch for every real commit you make and makes commits to that branch without impacting your working
 copy. You keep using Git exactly as you did before.
 
-### 3. Stop background execution (Direct Mode Only)
+### 3. Stop monitoring a repository
+To remove a repository from the watch list:
+
+```bash
+$ endur unwatch some/git/repo
+```
+If no path is specified, it defaults to the current working directory.
+
+### 4. Clean up watch list
+To automatically remove any deleted, renamed, or inaccessible folders from your watch list:
+
+```bash
+$ endur cleanup
+```
+
+### 5. Stop background execution (Direct Mode Only)
 To stop a daemon running in direct/debugging mode, run:
 
 ```bash
@@ -165,7 +182,7 @@ cargo install endur
 3. Navigate to repository base directory (`cd endur`)
 4. Run:
    ```bash
-   cargo install --path .
+   cargo install --path crates/endur
    ```
 
 ### macOS & Linux (Startup Service)
@@ -189,7 +206,7 @@ $ endur service uninstall
    git clone https://github.com/PJC-64/endur.git
    ```
 3. Navigate to repository base directory (`cd endur`)
-4. Run `cargo install --path .` **Note:** If you receive a failure fetching the cargo dependencies try using the local [git client for cargo fetches](https://doc.rust-lang.org/cargo/reference/config.html#netgit-fetch-with-cli). `CARGO_NET_GIT_FETCH_WITH_CLI=true cargo install --path .`
+4. Run `cargo install --path crates/endur` **Note:** If you receive a failure fetching the cargo dependencies try using the local [git client for cargo fetches](https://doc.rust-lang.org/cargo/reference/config.html#netgit-fetch-with-cli). `CARGO_NET_GIT_FETCH_WITH_CLI=true cargo install --path crates/endur`
 
 ### Arch Linux
 
@@ -224,6 +241,21 @@ to develop:
 ```bash
 nix develop github:PJC-64/endur
 ```
+
+## Editor Integrations
+
+### Neovim Plugin (`endur-nvim`)
+
+An official Neovim plugin is provided in [`plugins/endur-nvim`](plugins/endur-nvim).
+
+#### Features:
+* **Auto-Watch**: Automatically registers git repositories with `endur watch` on buffer write (`BufWritePost`).
+* **Statusline / Winbar**: Displays real-time repository backup state (`󰄬 Clean (3)` / `󰏬 Modified (1)`).
+* **Snapshot Navigation**: Integrated snapshot pickers supporting `snacks.nvim`, `fzf-lua`, and `telescope.nvim` with full side-by-side patch diff previews.
+* **Discrete Restore**: Press `<C-f>` within any snapshot picker to restore only the currently open buffer to that snapshot point.
+* **Control Center**: Launch the interactive `endur tui` inside a floating terminal directly from Neovim using `:EndurTUI`.
+
+For installation and configuration details, see the [endur-nvim README](plugins/endur-nvim/README.md).
 
 ## FAQ
 

@@ -113,4 +113,4 @@ cd crates/endur-desktop
 npm run build
 npm run tauri build
 ```
-This generates binaries and bundles them into platform-specific installers (e.g. `.dmg` on macOS) under `crates/endur-desktop/src-tauri/target/release/bundle/`.
+This generates binaries and bundles them into platform-specific installers (e.g. `.dmg` on macOS) under `target/release/bundle/` (relative to the repository root).

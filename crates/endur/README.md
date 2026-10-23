@@ -24,6 +24,11 @@ Ensure `git` is installed and available in your `$PATH`.
 cargo install endur
 ```
 
+Or build from source in the workspace root:
+```bash
+cargo install --path crates/endur
+```
+
 This installs the `endur` executable into your local Cargo binary folder (usually `~/.cargo/bin`). Make sure this path is in your environment's `$PATH`.
 
 ---
@@ -49,6 +54,16 @@ endur watch
 ```
 You can also watch specific paths or define inclusion/exclusion directories.
 
+To stop watching a repository:
+```bash
+endur unwatch
+```
+
+To clean up inaccessible or deleted repositories from your watch list:
+```bash
+endur cleanup
+```
+
 ### 3. Interactive TUI Control Center
 Launch the terminal dashboard to manage repositories, preview diffs, and select files to restore:
 ```bash
@@ -70,6 +85,7 @@ Restore only specific files or folders from a snapshot (discrete restore):
 ```bash
 endur restore <commit-hash> --files path/to/file1.txt path/to/dir/
 ```
+*(Both relative and absolute file paths are supported and automatically normalized to the repository root).*
 
 ### 5. Pruning Old Backups
 To reclaim space, prune older snapshots by keeping only those matching the last `N` formal commits:
@@ -94,4 +110,4 @@ To optimize response times in the GUI and TUI, Endur caches snapshot records in 
 ---
 
 ## Documentation & GUI Client
-For more information, developer guides, and the native Tauri-based Desktop application client, visit the [Endur Main Repository](https://github.com/PJC-64/endur).
+For more information, developer guides, the native Tauri-based Desktop application client, and the [Neovim plugin](https://github.com/PJC-64/endur/tree/main/plugins/endur-nvim), visit the [Endur Main Repository](https://github.com/PJC-64/endur).
