@@ -40,6 +40,15 @@
     onToggleFileSelection: (filePath: string) => void;
     onViewFileDiff: (filePath: string) => void;
   } = $props();
+
+  function formatSnapshotTimestamp(timestamp: number): string {
+    if (!timestamp) return "Unknown";
+    const d = new Date(timestamp * 1000);
+    if (isNaN(d.getTime())) return "Unknown";
+    const mm = String(d.getMonth() + 1).padStart(2, "0");
+    const dd = String(d.getDate()).padStart(2, "0");
+    return `${mm}-${dd} ${d.toLocaleTimeString()}`;
+  }
 </script>
 
 <div class="tab-content backups-view">
@@ -91,7 +100,7 @@
               <div class="snap-hash">{snap.commit_hash.substring(0, 7)}</div>
               <div class="snap-desc">{snap.message || "Auto-backup snapshot"}</div>
               <div class="snap-meta">
-                <span>🕒 {new Date(snap.timestamp * 1000).toLocaleTimeString()}</span>
+                <span title={new Date(snap.timestamp * 1000).toLocaleString()}>🕒 {formatSnapshotTimestamp(snap.timestamp)}</span>
                 <span>📂 {snap.files_changed} file(s)</span>
               </div>
             </button>
@@ -337,6 +346,11 @@
     justify-content: space-between;
     font-size: 0.75rem;
     color: #64748b;
+    gap: 0.5rem;
+  }
+
+  .snap-meta span {
+    white-space: nowrap;
   }
 
   .empty-pane-text {
